@@ -44,11 +44,11 @@ Set these values in `.env` using your local Supabase status output:
 
 ```dotenv
 VITE_SUPABASE_URL=http://127.0.0.1:54321
-VITE_SUPABASE_ANON_KEY=your-local-anon-key
+VITE_SUPABASE_PUBLISHABLE_KEY=your-local-publishable-key
 ```
 
-The current client reads `VITE_SUPABASE_ANON_KEY`, not
-`VITE_SUPABASE_PUBLISHABLE_KEY`. Use the local anon key reported by Supabase.
+The client reads `VITE_SUPABASE_PUBLISHABLE_KEY`. Use the publishable key
+from your Supabase project, or the local key reported by `supabase status`.
 Never place a secret or service-role key in a `VITE_*` variable; Vite exposes
 these variables to the browser. Keep `.env` uncommitted.
 
@@ -61,8 +61,28 @@ npm run dev
 Open the URL printed by Vite, normally `http://localhost:5173`.
 Restart Vite after changing environment variables.
 
-The frontend currently uses the starter screen. Signup, workspace onboarding,
-and task management UI are not implemented yet.
+The frontend shows an email/password signup page using shadcn components,
+React Hook Form, and Zod. Password confirmation must match; the minimum password
+length is six characters, matching the current local Supabase configuration.
+Supabase errors are displayed in the form. If email confirmation is enabled,
+the page asks the user to check their inbox (Mailpit for local development).
+Otherwise it continues to the workspace check. Task management UI is not
+implemented yet.
+
+The login page is available at `/login`, with signup at `/signup`. The root
+URL redirects to signup. React Router handles client-side navigation.
+Both pages link to each other and share the shadcn layout.
+Login uses React Hook Form and Zod to validate email and a non-empty password,
+then calls Supabase password sign-in. Errors appear in the form. Successful
+login goes to `/workspaces`, which queries Supabase for the authenticated user's
+workspaces under RLS. Users without memberships are redirected to
+`/workspaces/new`; users with memberships see their workspace list.
+The creation page validates the name and calls `create_workspace`, creating
+the workspace and assigning the creator `workspace.owner` atomically.
+Both workspace pages require a session, and loading errors offer a retry
+instead of being treated as an empty workspace list.
+Production frontend hosting must serve `index.html` for application routes
+such as `/login` and `/signup` so direct links and refreshes work.
 
 ## UI components
 

@@ -6,6 +6,8 @@ There is no production deployment procedure configured yet.
 This guide will cover:
 
 - Frontend hosting and HTTPS.
+- SPA fallback to `index.html` for React Router routes such as `/login` and
+  `/signup`, while serving static assets normally.
 - Hosted or self-hosted Supabase configuration.
 - Production environment variables and secret management.
 - Database migrations and required reference data.

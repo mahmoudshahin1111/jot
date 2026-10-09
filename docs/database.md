@@ -13,8 +13,8 @@ a description defaulting to an empty string, and a creation timestamp.
 Tasks cannot be moved between workspaces.
 
 No root or default workspace is created by migrations or seeds. Signup
-onboarding will require a user to create at least one workspace before
-continuing; that flow is not implemented yet.
+onboarding requires a user to belong to at least one workspace before
+continuing. Users without memberships are directed to workspace creation.
 
 The workspace migration replaces `task_users` with `workspace_users`. A fresh
 database starts with no workspaces or memberships. Legacy task data or custom
@@ -31,11 +31,17 @@ Deleting a user removes their memberships, not workspace tasks. Deleting a
 workspace through a trusted administrative connection removes its tasks,
 memberships, and custom roles.
 
-Anonymous access and client task creation remain blocked. Workspace,
+Anonymous access and client task creation remain blocked. Other workspace,
 membership, role, and permission management must currently use a trusted
 administrative connection. Leaving individual tasks is no longer supported;
-workspace membership management and automatic owner assignment will be added
-separately.
+workspace membership management will be added separately.
+
+Authenticated users can call `public.create_workspace(workspace_name)` to
+create a workspace and assign themselves the shared `workspace.owner` role
+in one transaction. The function takes no user or role ID from the client,
+validates the name, and rejects unauthenticated callers. Direct client inserts
+into workspaces and memberships remain blocked. Existing workspace membership
+is checked through the RLS-protected workspace query.
 
 ## Roles and permissions
 
