@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { getWorkspaceAccess, type Workspace } from '@/lib/workspaces'
 import { supabase } from '@/lib/supabaseClient'
+import { PERMISSIONS } from '@/lib/permissions'
 
 export const WorkspaceNavigationContext = createContext<{
   registerGuard: (guard: () => boolean) => () => void
@@ -49,7 +50,7 @@ export function useWorkspaceShell(workspaceId: string) {
       navigate('/workspaces', { replace: true })
       return false
     }
-    if (!result.permissions.includes('roles.read')
+    if (!result.permissions.includes(PERMISSIONS.roles.read)
       && pathnameRef.current === `/workspaces/${workspaceId}/settings/roles`) {
       navigate(`/workspaces/${workspaceId}/dashboard`, { replace: true })
     }

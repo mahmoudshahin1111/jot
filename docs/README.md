@@ -105,6 +105,12 @@ Roles and members load ten rows at a time with automatic infinite scrolling
 and a Load more fallback. Roles and permissions use `name` for human-readable
 display (Owner, Editor, Viewer, or a custom name) and `key` for machine-readable
 identifiers such as `workspace.owner` and `tasks.read`.
+Client-side permission checks use the shared
+[`PERMISSIONS` constant](../src/lib/permissions.ts), for example
+`PERMISSIONS.roles.update`, rather than inline permission keys. It lists all
+seeded task and role permissions and exports a `PermissionKey` literal-union
+type. Keep this list aligned with permission definitions in the database seed;
+display names and assigned permissions still come from Supabase.
 Filtering searches names across all available roles, not just
 the loaded page. Duplication copies saved permissions into a custom role
 without members. Member removal revokes that workspace membership and updates

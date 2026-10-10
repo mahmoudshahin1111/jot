@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { WorkspaceNavigationContext } from '@/hooks/use-workspace-shell'
+import { PERMISSIONS } from '@/lib/permissions'
 import {
   deleteRole, duplicateRole, getRoles, rolePageSize, saveRolePermissions,
   type RolesPage, type WorkspaceRole,
@@ -126,7 +127,7 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   function togglePermission(id: string) {
-    if (busy || selectedRole?.is_system || !permissions.includes('roles.update')) return
+    if (busy || selectedRole?.is_system || !permissions.includes(PERMISSIONS.roles.update)) return
     setDraft(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id])
     setNotice('')
   }
@@ -204,10 +205,10 @@ export function useWorkspaceRoles(workspaceId: string) {
     roles, metadata: metadata && {
       ...metadata,
       capabilities: {
-        update: permissions.includes('roles.update'),
-        create: permissions.includes('roles.create'),
-        delete: permissions.includes('roles.delete'),
-        remove_members: permissions.includes('roles.members.remove'),
+        update: permissions.includes(PERMISSIONS.roles.update),
+        create: permissions.includes(PERMISSIONS.roles.create),
+        delete: permissions.includes(PERMISSIONS.roles.delete),
+        remove_members: permissions.includes(PERMISSIONS.roles.removeMembers),
       },
     }, selectedRole, draft, dirty, filter, setFilter, loading, hasMore,
     error, actionError, busy, notice, loadMore, selectRole, togglePermission, discard, save, duplicate,
