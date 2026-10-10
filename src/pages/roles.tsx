@@ -70,7 +70,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                     onClick={() => state.selectRole(item)}
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-xs font-semibold">{item.label}</span>
+                      <span className="block truncate text-xs font-semibold">{item.name}</span>
                       <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
                         {item.member_count} {item.member_count === 1 ? 'member' : 'members'}
                       </span>
@@ -99,7 +99,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="break-all text-xl font-semibold">{role.label}</h2>
+                  <h2 className="break-all text-xl font-semibold">{role.name}</h2>
                   <RoleBadge system={role.is_system} />
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -140,7 +140,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
             </div>
             {state.dirty && (
               <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted p-3">
-                <p className="text-xs font-medium">You have unsaved changes to {role.label}.</p>
+                <p className="text-xs font-medium">You have unsaved changes to {role.name}.</p>
                 <div className="flex gap-2">
                   <Button variant="outline" disabled={state.busy} onClick={state.discard}>Discard changes</Button>
                   <Button disabled={state.busy} onClick={state.save}>{state.busy ? 'Saving...' : 'Save changes'}</Button>
@@ -160,7 +160,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                     {state.metadata.permissions.map(permission => (
                       <tr key={permission.id}>
                         <th scope="row" className="py-3 pr-4 font-normal">
-                          <span className="block font-medium">{permission.label}</span>
+                          <span className="block font-medium">{permission.name}</span>
                           <span className="mt-1 block text-xs text-muted-foreground">{permission.description}</span>
                         </th>
                         <td className="py-3 text-center">
@@ -169,7 +169,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                             className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
                             checked={state.draft.includes(permission.id)}
                             disabled={!canEdit || state.busy}
-                            aria-label={`Allow ${permission.label}`}
+                            aria-label={`Allow ${permission.name}`}
                             onChange={() => state.togglePermission(permission.id)}
                           />
                         </td>
@@ -184,7 +184,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                 key={role.id}
                 workspaceId={workspaceId}
                 roleId={role.id}
-                roleName={role.label}
+                roleName={role.name}
                 canRemove={state.metadata.capabilities.remove_members && !state.busy}
                 updateCount={state.updateMemberCount}
                 checkAccess={state.checkAccess}

@@ -24,14 +24,14 @@ select is(
   'Test workspace', 'Creator can read the workspace and name is trimmed'
 );
 select is(
-  (select r.name from public.workspace_users u join public.roles r on r.id = u.role_id
+  (select r.key from public.workspace_users u join public.roles r on r.id = u.role_id
    where u.workspace_id = (select workspace_id from creation_fixture)),
   'workspace.owner', 'Creator receives the system owner role'
 );
 select ok(
   private.has_workspace_permission(
     (select workspace_id from creation_fixture),
-    (select id from public.permissions where name = 'tasks.delete')
+    (select id from public.permissions where key = 'tasks.delete')
   ), 'Creator receives owner permissions'
 );
 select set_config('request.jwt.claim.sub', '', true);

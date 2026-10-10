@@ -102,9 +102,10 @@ shows one row per seeded permission, with read-only system roles and editable
 custom roles when the caller has `roles.update`. Unsaved edits show Save and
 Discard actions; saving persists the entire selection atomically.
 Roles and members load ten rows at a time with automatic infinite scrolling
-and a Load more fallback. Role names are displayed using their labels (Owner,
-Editor, Viewer, or a custom label), while machine names remain internal keys.
-Filtering searches labels across all available roles, not just
+and a Load more fallback. Roles and permissions use `name` for human-readable
+display (Owner, Editor, Viewer, or a custom name) and `key` for machine-readable
+identifiers such as `workspace.owner` and `tasks.read`.
+Filtering searches names across all available roles, not just
 the loaded page. Duplication copies saved permissions into a custom role
 without members. Member removal revokes that workspace membership and updates
 the visible list without reloading it. Other workspaces and the user's Jot

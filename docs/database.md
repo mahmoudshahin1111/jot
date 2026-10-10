@@ -45,25 +45,25 @@ is checked through the RLS-protected workspace query.
 
 ## Roles and permissions
 
-The `public.roles` and `public.permissions` tables each have a generated UUID
-and a required, unique, non-empty name. Permissions also have a description
-defaulting to an empty string.
-Permissions have a required, non-blank `label` for human-readable display
-(for example, `View tasks`). The roles table and checkbox accessible names use
-this label. The unique `name` remains the machine-readable authorization key
-(for example, `tasks.read`); labels do not affect permission checks or UUID
-mappings. The label migration backfills existing records without changing IDs,
-and the seed maintains labels alongside descriptions.
-Roles also have a required, non-blank `label`. Shared system roles display
-Owner, Editor, and Viewer while keeping their `workspace.*` machine names.
-Existing custom roles retain their names as their initial labels. The role
-list, heading, and messages display labels; filtering searches labels.
-Duplication copies the source label with the same copy suffix as the new
-machine name. Pagination and authorization continue using machine names and IDs.
+The `public.roles` and `public.permissions` tables each have a generated UUID,
+a required, non-blank machine-readable `key`, and a required, non-blank display
+`name`. Permissions also have a description defaulting to an empty string.
+For example, a permission has `key = 'tasks.read'` and `name = 'View tasks'`;
+the owner role has `key = 'workspace.owner'` and `name = 'Owner'`.
+The role list, headings, messages, permission table, and checkbox accessible
+names use `name`; authorization and role pagination use `key` and UUIDs.
+Filtering searches display names. Duplication appends the existing copy suffix
+to both the source key and display name without assigning members.
+The rename migration changes the old machine `name` column to `key` and the
+old display `label` column to `name`, preserving values, IDs, and mappings.
+Existing applied migrations remain unchanged. Deploy the updated RPCs and
+frontend together: role pagination now accepts `after_key` instead of `after_name`,
+and role/permission JSON contains `key` and `name`, not `label`.
 
 System roles have `is_system = true` and no workspace ID; they are shared across
 workspaces. Custom roles have `is_system = false` and a required `workspace_id`.
-Names are unique among system roles and within each workspace's custom roles.
+Keys are unique among system roles and within each workspace's custom roles;
+permission keys are globally unique. Display names need not be unique.
 Role scope cannot be changed after creation. A membership can use a system role
 or a custom role from the same workspace, never another workspace's custom role.
 
@@ -102,7 +102,7 @@ explicit authenticated-only execute grants; direct table writes stay blocked.
 | Function | Required permission | Behavior |
 | --- | --- | --- |
 | `get_workspace_access` | Membership with at least one permission | Returns the caller's workspace, assigned role ID, and permission keys, or null when access is revoked. Authenticated-only; no arbitrary user lookup. |
-| `list_workspace_roles` | `roles.read` | Returns scoped roles with labels, member counts, permission IDs, definitions, and caller capabilities. Machine-name/UUID cursor pagination and case-insensitive label filtering support infinite scrolling. |
+| `list_workspace_roles` | `roles.read` | Returns scoped roles and permission definitions with keys and display names, member counts, permission IDs, and caller capabilities. Key/UUID cursor pagination and case-insensitive name filtering support infinite scrolling. |
 | `save_workspace_role_permissions` | `roles.update` | Replaces a custom role's permission mappings atomically after locking the role. Validates permission IDs and compares `expected_permission_ids` to prevent overwriting stale edits. |
 | `list_workspace_role_members` | `roles.read` | Returns only users assigned to the given role in this workspace, including display name and email. Uses a user UUID cursor. |
 | `remove_workspace_role_member` | `roles.members.remove` | Deletes the exact workspace/user/role membership. This revokes workspace access without deleting the account or affecting other workspaces. The last workspace owner cannot be removed. |
@@ -137,7 +137,7 @@ uses the last displayed row as its next cursor. Member counts cover the entire
 role, not just the loaded page.
 
 The seed can be run repeatedly without duplicating rows or changing IDs.
-Names resolve permission definitions; membership and role-permission
+Keys resolve permission definitions; membership and role-permission
 relationships, and authorization checks, use UUIDs.
 Supabase runs the seed after migrations during a local database reset.
 Do not reset an existing database just to apply these permissions, since a

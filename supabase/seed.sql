@@ -1,4 +1,4 @@
-insert into public.permissions (name, label, description)
+insert into public.permissions (key, name, description)
 values
   ('tasks.read', 'View tasks', 'Read tasks.'),
   ('tasks.update', 'Update tasks', 'Update tasks.'),
@@ -8,26 +8,26 @@ values
   ('roles.update', 'Update role permissions', 'Update custom role permissions.'),
   ('roles.delete', 'Delete roles', 'Delete empty custom roles.'),
   ('roles.members.remove', 'Remove workspace members', 'Remove role members from the workspace.')
-on conflict (name) do update
-set label = excluded.label, description = excluded.description;
+on conflict (key) do update
+set name = excluded.name, description = excluded.description;
 
-insert into public.roles (name, label, is_system)
+insert into public.roles (key, name, is_system)
 values
   ('workspace.owner', 'Owner', true),
   ('workspace.editor', 'Editor', true),
   ('workspace.viewer', 'Viewer', true)
-on conflict (name) where is_system do update set label = excluded.label;
+on conflict (key) where is_system do update set name = excluded.name;
 
 insert into public.role_permissions (role_id, permission_id)
 select roles.id, permissions.id
 from public.roles cross join public.permissions
 where roles.is_system
   and (
-    (roles.name = 'workspace.owner' and (
-      permissions.name in ('tasks.read', 'tasks.update', 'tasks.delete')
-      or permissions.name like 'roles.%'
+    (roles.key = 'workspace.owner' and (
+      permissions.key in ('tasks.read', 'tasks.update', 'tasks.delete')
+      or permissions.key like 'roles.%'
     ))
-    or (roles.name = 'workspace.editor' and permissions.name in ('tasks.read', 'tasks.update'))
-    or (roles.name = 'workspace.viewer' and permissions.name = 'tasks.read')
+    or (roles.key = 'workspace.editor' and permissions.key in ('tasks.read', 'tasks.update'))
+    or (roles.key = 'workspace.viewer' and permissions.key = 'tasks.read')
   )
 on conflict (role_id, permission_id) do nothing;

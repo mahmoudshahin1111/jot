@@ -13,11 +13,11 @@ $$;
 
 insert into auth.users (id) select id from realtime_fixture where name in ('user', 'other');
 insert into public.workspaces (id, name) values (pg_temp.realtime_id('workspace'), 'Realtime access test');
-insert into public.roles (id, name, label, workspace_id) values
+insert into public.roles (id, key, name, workspace_id) values
   (pg_temp.realtime_id('role'), 'realtime-test', 'Realtime test', pg_temp.realtime_id('workspace')),
   (pg_temp.realtime_id('other_role'), 'realtime-other', 'Realtime other', pg_temp.realtime_id('workspace'));
 insert into public.role_permissions (role_id, permission_id)
-select pg_temp.realtime_id('role'), id from public.permissions where name = 'roles.read';
+select pg_temp.realtime_id('role'), id from public.permissions where key = 'roles.read';
 insert into public.workspace_users (workspace_id, user_id, role_id) values
   (pg_temp.realtime_id('workspace'), pg_temp.realtime_id('user'), pg_temp.realtime_id('role')),
   (pg_temp.realtime_id('workspace'), pg_temp.realtime_id('other'), pg_temp.realtime_id('other_role'));
@@ -62,7 +62,7 @@ select is((select count(*) from realtime.messages where topic = 'workspace-acces
 reset role;
 
 insert into public.role_permissions (role_id, permission_id)
-select pg_temp.realtime_id('role'), id from public.permissions where name = 'tasks.read';
+select pg_temp.realtime_id('role'), id from public.permissions where key = 'tasks.read';
 select is((select count(*) from realtime.messages where topic = 'workspace-access:' || pg_temp.realtime_id('user')),
   2::bigint, 'Permission insertion notifies the assigned user');
 update public.workspace_users set role_id = pg_temp.realtime_id('other_role')

@@ -183,7 +183,7 @@ export function useWorkspaceRoles(workspaceId: string) {
 
   function removeRole() {
     if (!selectedRole || selectedRole.is_system
-      || !window.confirm(`Delete ${selectedRole.label}? This cannot be undone.`)) return
+      || !window.confirm(`Delete ${selectedRole.name}? This cannot be undone.`)) return
     const role = selectedRole
     void runAction(async () => {
       await deleteRole(workspaceId, role.id)

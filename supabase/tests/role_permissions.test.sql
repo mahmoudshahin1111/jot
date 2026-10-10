@@ -13,19 +13,19 @@ $$;
 insert into auth.users (id) values (pg_temp.f('owner')), (pg_temp.f('viewer'));
 insert into public.workspaces (id, name) values
   (pg_temp.f('workspace'), 'Role permissions test'), (pg_temp.f('other_workspace'), 'Other workspace');
-insert into public.roles (id, name, label, workspace_id) values
+insert into public.roles (id, key, name, workspace_id) values
   (pg_temp.f('custom'), 'Custom test', 'Custom test', pg_temp.f('workspace')),
   (pg_temp.f('foreign_role'), 'Foreign test', 'Foreign test', pg_temp.f('other_workspace'));
 insert into public.workspace_users (workspace_id, user_id, role_id)
-select pg_temp.f('workspace'), pg_temp.f('owner'), id from public.roles where is_system and name = 'workspace.owner'
+select pg_temp.f('workspace'), pg_temp.f('owner'), id from public.roles where is_system and key = 'workspace.owner'
 union all
-select pg_temp.f('workspace'), pg_temp.f('viewer'), id from public.roles where is_system and name = 'workspace.viewer';
+select pg_temp.f('workspace'), pg_temp.f('viewer'), id from public.roles where is_system and key = 'workspace.viewer';
 
 select set_config('request.jwt.claim.sub', pg_temp.f('owner')::text, true);
 set local role authenticated;
 select lives_ok(
   $$select public.save_workspace_role_permissions(pg_temp.f('workspace'), pg_temp.f('custom'),
-    array[(select id from public.permissions where name = 'tasks.read')], '{}'::uuid[])$$,
+    array[(select id from public.permissions where key = 'tasks.read')], '{}'::uuid[])$$,
   'Workspace owner can save custom role permissions'
 );
 select is(
@@ -39,7 +39,7 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.save_workspace_role_permissions(pg_temp.f('workspace'),
-    (select id from public.roles where is_system and name = 'workspace.owner'),
+    (select id from public.roles where is_system and key = 'workspace.owner'),
     '{}'::uuid[], '{}'::uuid[])$$,
   '42501', 'Only custom roles in this workspace can be updated', 'System permissions are read-only'
 );
@@ -50,12 +50,12 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.save_workspace_role_permissions(pg_temp.f('workspace'), pg_temp.f('custom'),
-    array[gen_random_uuid()], array[(select id from public.permissions where name = 'tasks.read')])$$,
+    array[gen_random_uuid()], array[(select id from public.permissions where key = 'tasks.read')])$$,
   '22023', 'Invalid permission IDs', 'Unknown permissions are rejected'
 );
 select throws_ok(
   $$select public.save_workspace_role_permissions(pg_temp.f('workspace'), pg_temp.f('custom'),
-    array[null]::uuid[], array[(select id from public.permissions where name = 'tasks.read')])$$,
+    array[null]::uuid[], array[(select id from public.permissions where key = 'tasks.read')])$$,
   '22023', 'Invalid permission IDs', 'Null permission IDs are rejected'
 );
 select is(
@@ -64,7 +64,7 @@ select is(
 );
 select lives_ok(
   $$select public.save_workspace_role_permissions(pg_temp.f('workspace'), pg_temp.f('custom'),
-    '{}'::uuid[], array[(select id from public.permissions where name = 'tasks.read')])$$,
+    '{}'::uuid[], array[(select id from public.permissions where key = 'tasks.read')])$$,
   'Owner can explicitly clear permissions'
 );
 select is(

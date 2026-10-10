@@ -31,26 +31,26 @@ values
   (pg_temp.fixture_id('task_b'), 'Task B', pg_temp.fixture_id('workspace_b')),
   (pg_temp.fixture_id('task_c'), 'Task C', pg_temp.fixture_id('workspace_c'));
 
-insert into public.roles (id, name, label, workspace_id)
+insert into public.roles (id, key, name, workspace_id)
 values
   (pg_temp.fixture_id('custom_role_b'), 'custom.reader', 'Custom reader', pg_temp.fixture_id('workspace_b')),
   (pg_temp.fixture_id('custom_role_c'), 'custom.reader', 'Custom reader', pg_temp.fixture_id('workspace_c'));
 
 insert into public.role_permissions (role_id, permission_id)
-select pg_temp.fixture_id('custom_role_b'), id from public.permissions where name = 'tasks.read';
+select pg_temp.fixture_id('custom_role_b'), id from public.permissions where key = 'tasks.read';
 
 insert into public.workspace_users (workspace_id, user_id, role_id)
 select pg_temp.fixture_id('workspace_a'), pg_temp.fixture_id('owner'), id
-from public.roles where is_system and name = 'workspace.owner'
+from public.roles where is_system and key = 'workspace.owner'
 union all
 select pg_temp.fixture_id('workspace_b'), pg_temp.fixture_id('owner'), id
-from public.roles where is_system and name = 'workspace.owner'
+from public.roles where is_system and key = 'workspace.owner'
 union all
 select pg_temp.fixture_id('workspace_a'), pg_temp.fixture_id('editor'), id
-from public.roles where is_system and name = 'workspace.editor'
+from public.roles where is_system and key = 'workspace.editor'
 union all
 select pg_temp.fixture_id('workspace_a'), pg_temp.fixture_id('viewer'), id
-from public.roles where is_system and name = 'workspace.viewer'
+from public.roles where is_system and key = 'workspace.viewer'
 union all
 select pg_temp.fixture_id('workspace_b'), pg_temp.fixture_id('custom_member'), pg_temp.fixture_id('custom_role_b')
 union all
@@ -71,18 +71,18 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.roles (name, label) values ('unscoped.custom', 'Unscoped custom')$$,
+  $$insert into public.roles (key, name) values ('unscoped.custom', 'Unscoped custom')$$,
   '23514', null, 'Custom roles require a workspace'
 );
 
 select throws_ok(
-  $$insert into public.roles (name, label, is_system, workspace_id)
+  $$insert into public.roles (key, name, is_system, workspace_id)
     values ('scoped.system', 'Scoped system', true, pg_temp.fixture_id('workspace_a'))$$,
   '23514', null, 'System roles must be global'
 );
 
 select is(
-  (select count(*) from public.roles where name = 'custom.reader'),
+  (select count(*) from public.roles where key = 'custom.reader'),
   2::bigint, 'Different workspaces can reuse custom role names'
 );
 
@@ -132,7 +132,7 @@ select is(
 );
 with changed as (
     update public.workspace_users
-    set role_id = (select id from public.roles where is_system and name = 'workspace.owner')
+    set role_id = (select id from public.roles where is_system and key = 'workspace.owner')
     where user_id = pg_temp.fixture_id('editor') returning user_id
 )
 select is(
@@ -147,7 +147,7 @@ select is(
   0::bigint, 'Client membership deletion remains blocked'
 );
 with changed as (
-    update public.roles set name = 'Tampered' where is_system returning id
+    update public.roles set key = 'Tampered' where is_system returning id
 )
 select is(
   (select count(*) from changed),
@@ -156,7 +156,7 @@ select is(
 select throws_ok(
   $$insert into public.role_permissions (role_id, permission_id)
     select r.id, p.id from public.roles r cross join public.permissions p
-    where r.is_system and r.name = 'workspace.editor' and p.name = 'tasks.delete'$$,
+    where r.is_system and r.key = 'workspace.editor' and p.key = 'tasks.delete'$$,
   '42501', null, 'Editor cannot grant themselves delete permission'
 );
 select throws_ok(
@@ -272,7 +272,7 @@ select is(
   0::bigint, 'Workspace deletion cascades to referenced custom roles'
 );
 select is(
-  (select count(*) from public.roles where is_system and name like 'workspace.%'),
+  (select count(*) from public.roles where is_system and key like 'workspace.%'),
   3::bigint, 'Workspace deletion preserves shared system roles'
 );
 delete from auth.users where id = pg_temp.fixture_id('custom_member');

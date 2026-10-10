@@ -16,19 +16,19 @@ insert into auth.users (id, email) values
   (pg_temp.f('other_member'), 'other-role-member@example.test');
 insert into public.workspaces (id, name) values
   (pg_temp.f('workspace'), 'Members test'), (pg_temp.f('other_workspace'), 'Other workspace');
-insert into public.roles (id, name, label, workspace_id) values
+insert into public.roles (id, key, name, workspace_id) values
   (pg_temp.f('custom'), 'Member role', 'Member role', pg_temp.f('workspace')),
   (pg_temp.f('foreign_role'), 'Other member role', 'Other member role', pg_temp.f('other_workspace'));
 insert into public.role_permissions (role_id, permission_id)
-select pg_temp.f('custom'), id from public.permissions where name = 'tasks.read';
+select pg_temp.f('custom'), id from public.permissions where key = 'tasks.read';
 insert into public.workspace_users (workspace_id, user_id, role_id)
-select pg_temp.f('workspace'), pg_temp.f('owner'), id from public.roles where is_system and name = 'workspace.owner'
+select pg_temp.f('workspace'), pg_temp.f('owner'), id from public.roles where is_system and key = 'workspace.owner'
 union all
 select pg_temp.f('workspace'), pg_temp.f('member'), pg_temp.f('custom')
 union all
 select pg_temp.f('workspace'), pg_temp.f('other_member'), pg_temp.f('custom')
 union all
-select pg_temp.f('other_workspace'), pg_temp.f('member'), id from public.roles where is_system and name = 'workspace.viewer';
+select pg_temp.f('other_workspace'), pg_temp.f('member'), id from public.roles where is_system and key = 'workspace.viewer';
 
 select set_config('request.jwt.claim.sub', pg_temp.f('owner')::text, true);
 set local role authenticated;
@@ -55,7 +55,7 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.remove_workspace_role_member(pg_temp.f('workspace'),
-    (select id from public.roles where is_system and name = 'workspace.owner'), pg_temp.f('owner'))$$,
+    (select id from public.roles where is_system and key = 'workspace.owner'), pg_temp.f('owner'))$$,
   '23514', 'The last workspace owner cannot be removed', 'Last owner remains assigned'
 );
 select set_config('request.jwt.claim.sub', pg_temp.f('member')::text, true);
@@ -76,7 +76,7 @@ select set_config('request.jwt.claim.sub', pg_temp.f('member')::text, true);
 select ok(not private.is_workspace_member(pg_temp.f('workspace')), 'Removed member loses workspace membership');
 select ok(private.is_workspace_member(pg_temp.f('other_workspace')), 'Other workspace membership is preserved');
 select ok(not private.has_workspace_permission(pg_temp.f('workspace'),
-  (select id from public.permissions where name = 'tasks.read')), 'Removed member loses task access');
+  (select id from public.permissions where key = 'tasks.read')), 'Removed member loses task access');
 select throws_ok(
   $$select public.list_workspace_roles(pg_temp.f('workspace'))$$,
   '42501', 'You no longer have access to this workspace', 'Removed member cannot use role RPCs'

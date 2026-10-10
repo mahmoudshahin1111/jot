@@ -13,13 +13,13 @@ $$;
 insert into auth.users (id) values (pg_temp.f('owner')), (pg_temp.f('viewer'));
 insert into public.workspaces (id, name) values
   (pg_temp.f('workspace'), 'Role management test'), (pg_temp.f('other_workspace'), 'Other workspace');
-insert into public.roles (id, name, label, workspace_id) values
+insert into public.roles (id, key, name, workspace_id) values
   (pg_temp.f('custom'), 'A custom test', 'A custom test', pg_temp.f('workspace')),
   (pg_temp.f('foreign_role'), 'Foreign test', 'Foreign test', pg_temp.f('other_workspace'));
 insert into public.role_permissions (role_id, permission_id)
-select pg_temp.f('custom'), id from public.permissions where name = 'tasks.read';
+select pg_temp.f('custom'), id from public.permissions where key = 'tasks.read';
 insert into public.workspace_users (workspace_id, user_id, role_id)
-select pg_temp.f('workspace'), pg_temp.f('owner'), id from public.roles where is_system and name = 'workspace.owner'
+select pg_temp.f('workspace'), pg_temp.f('owner'), id from public.roles where is_system and key = 'workspace.owner'
 union all
 select pg_temp.f('workspace'), pg_temp.f('viewer'), pg_temp.f('custom');
 
@@ -34,7 +34,7 @@ select is(
   2, 'List returns page size plus one for infinite scroll'
 );
 select is(
-  public.list_workspace_roles(pg_temp.f('workspace'), 1)->'roles'->0->>'name',
+  public.list_workspace_roles(pg_temp.f('workspace'), 1)->'roles'->0->>'key',
   'A custom test', 'Role pagination uses stable name order'
 );
 select is(
@@ -56,7 +56,7 @@ select throws_ok(
 insert into management_fixture values
   ('copy', public.duplicate_workspace_role(pg_temp.f('workspace'), pg_temp.f('custom')));
 select is(
-  (select name from public.roles where id = pg_temp.f('copy')),
+  (select key from public.roles where id = pg_temp.f('copy')),
   'A custom test (copy)', 'Duplicate receives a custom workspace name'
 );
 select is(
@@ -70,7 +70,7 @@ select is(
 insert into management_fixture values
   ('copy2', public.duplicate_workspace_role(pg_temp.f('workspace'), pg_temp.f('custom')));
 select is(
-  (select name from public.roles where id = pg_temp.f('copy2')),
+  (select key from public.roles where id = pg_temp.f('copy2')),
   'A custom test (copy 2)', 'Repeated duplication chooses a unique name'
 );
 select throws_ok(
@@ -79,7 +79,7 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.delete_workspace_role(pg_temp.f('workspace'),
-    (select id from public.roles where is_system and name = 'workspace.viewer'))$$,
+    (select id from public.roles where is_system and key = 'workspace.viewer'))$$,
   '42501', 'Only custom roles in this workspace can be deleted', 'System roles cannot be deleted'
 );
 select throws_ok(
