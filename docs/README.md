@@ -81,12 +81,19 @@ The creation page validates the name and calls `create_workspace`, creating
 the workspace and assigning the creator `workspace.owner` atomically.
 Both workspace pages require a session, and loading errors offer a retry
 instead of being treated as an empty workspace list.
-Opening a workspace navigates to `/workspaces/:workspaceId`, with an intentionally
-empty Overview page and a shared sidebar. The sidebar links to Overview,
-Roles and permissions, and All workspaces, and remains visible on workspace
-pages. Direct links verify the session and workspace access; missing access
+Opening `/workspaces/:workspaceId` redirects to its empty Dashboard page at
+`/workspaces/:workspaceId/dashboard`. The shared sidebar has an Overview group
+with Dashboard and Activity (`/workspaces/:workspaceId/activity`, also empty),
+and a Settings group with Roles and permissions. All workspaces remains
+available at the bottom. A shared
+[Breadcrumb component](../src/components/breadcrumb.tsx) shows the current
+Workspace / group / page path on every workspace page. It accepts labeled items
+with optional links and a navigation guard for reuse elsewhere. Sidebar groups
+and breadcrumb paths come from the
+[workspace navigation hook](../src/hooks/use-workspace-navigation.ts).
+Direct links verify the session and workspace access; missing access
 returns the user to the workspace picker. On narrow screens the navigation
-appears above the page. Leaving the roles page through the sidebar prompts
+appears above the page. Leaving the roles page through the sidebar or breadcrumb prompts
 before discarding unsaved permission edits.
 
 Roles and permissions is at `/workspaces/:workspaceId/settings/roles`. This page

@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,12 +30,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
   const canEdit = Boolean(role && !role.is_system && state.metadata?.capabilities.update)
 
   return (
-    <main className="mx-auto min-h-svh max-w-7xl px-5 pt-10 pb-24 sm:px-10 sm:pt-16">
-      <nav aria-label="Breadcrumb" className="mb-3 font-mono text-xs text-muted-foreground">
-        <Link to={`/workspaces/${workspaceId}`} className="hover:underline" onClick={event => {
-          if (!state.confirmLeave()) event.preventDefault()
-        }}>workspace</Link> / settings
-      </nav>
+    <main className="mx-auto max-w-7xl px-5 pt-3 pb-24 sm:px-6">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-5">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Roles and permissions</h1>

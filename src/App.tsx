@@ -17,7 +17,9 @@ function App() {
         <Route path="/workspaces" element={<WorkspacesPage key="list" />} />
         <Route path="/workspaces/new" element={<WorkspacesPage key="create" create />} />
         <Route path="/workspaces/:workspaceId" element={<WorkspaceLayout />}>
-          <Route index element={<main aria-label="Workspace overview" className="min-h-svh" />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<main aria-label="Dashboard" className="min-h-96" />} />
+          <Route path="activity" element={<main aria-label="Activity" className="min-h-96" />} />
           <Route path="settings/roles" element={<RolesPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/signup" replace />} />

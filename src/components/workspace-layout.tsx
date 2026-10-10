@@ -1,8 +1,10 @@
 import { Link, NavLink, Outlet, useParams } from 'react-router-dom'
-import { ArrowLeft, Home, Shield } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WorkspaceNavigationContext, useWorkspaceShell } from '@/hooks/use-workspace-shell'
 import logo from '@/assets/icons/jot-64x64.png'
+import { Breadcrumb } from '@/components/breadcrumb'
+import { useWorkspaceNavigation } from '@/hooks/use-workspace-navigation'
 
 export function WorkspaceLayout() {
   const { workspaceId } = useParams()
@@ -12,11 +14,7 @@ export function WorkspaceLayout() {
 
 function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
   const shell = useWorkspaceShell(workspaceId)
-  const basePath = `/workspaces/${workspaceId}`
-  const navigation = [
-    { to: basePath, label: 'Overview', icon: Home, end: true },
-    { to: `${basePath}/settings/roles`, label: 'Roles and permissions', icon: Shield, end: false },
-  ]
+  const { groups, breadcrumbs } = useWorkspaceNavigation(workspaceId)
 
   if (shell.error) {
     return (
@@ -34,35 +32,49 @@ function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
   return (
     <WorkspaceNavigationContext.Provider value={{ registerGuard: shell.registerGuard }}>
       <div className="min-h-svh md:flex">
-        <aside className="border-b bg-card p-5 md:sticky md:top-0 md:h-svh md:w-60 md:shrink-0 md:border-r md:border-b-0">
-          <div className="mb-6 flex items-center gap-3">
-            <img src={logo} width={32} height={32} alt="" />
-            <span className="text-xl font-semibold tracking-tight">Jot</span>
+        <aside className="flex flex-col border-b bg-card px-3 py-5 md:sticky md:top-0 md:h-svh md:w-52 md:shrink-0 md:border-r md:border-b-0">
+          <div className="mb-8 flex items-center gap-2 px-2">
+            <img src={logo} width={24} height={24} alt="" />
+            <span className="shrink-0 text-sm font-semibold tracking-tight">Jot</span>
+            <span className="text-muted-foreground" aria-hidden="true">/</span>
+            <span className="truncate text-xs font-medium" title={shell.workspace.name}>{shell.workspace.name}</span>
           </div>
-          <p className="mb-5 truncate text-sm font-medium" title={shell.workspace.name}>{shell.workspace.name}</p>
-          <nav aria-label="Workspace navigation" className="space-y-1">
-            {navigation.map(({ to, label, icon: Icon, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                onClick={event => { if (!shell.confirmNavigation()) event.preventDefault() }}
-                className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${isActive ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-              >
-                <Icon className="size-4 shrink-0" aria-hidden="true" />
-                {label}
-              </NavLink>
+          <nav aria-label="Workspace navigation" className="space-y-6">
+            {groups.map(group => (
+              <section key={group.label} aria-label={group.label}>
+                <h2 className="mb-2 px-2 text-[11px] font-medium text-muted-foreground">{group.label}</h2>
+                <ul className="space-y-1">
+                  {group.items.map(({ to, label, icon: Icon }) => (
+                    <li key={to}>
+                      <NavLink
+                        to={to}
+                        end
+                        onClick={event => { if (!shell.confirmNavigation()) event.preventDefault() }}
+                        className={({ isActive }) => `flex items-center gap-2.5 rounded-md px-2 py-2 text-xs transition-colors ${isActive ? 'bg-accent font-semibold text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                      >
+                        <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                        {label}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
+          </nav>
+          <div className="mt-8 md:mt-auto">
             <Link
               to="/workspaces"
               onClick={event => { if (!shell.confirmNavigation()) event.preventDefault() }}
-              className="mt-5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="flex items-center gap-2.5 rounded-md px-2 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <ArrowLeft className="size-4" aria-hidden="true" /> All workspaces
+              <ArrowLeft className="size-3.5" aria-hidden="true" /> All workspaces
             </Link>
-          </nav>
+          </div>
         </aside>
         <div className="min-w-0 flex-1">
+          <div className="mx-auto max-w-7xl px-5 pt-8 sm:px-6">
+            <Breadcrumb items={breadcrumbs} onNavigate={shell.confirmNavigation} />
+          </div>
           <Outlet />
         </div>
       </div>
