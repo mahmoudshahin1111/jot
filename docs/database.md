@@ -31,10 +31,10 @@ Deleting a user removes their memberships, not workspace tasks. Deleting a
 workspace through a trusted administrative connection removes its tasks,
 memberships, and custom roles.
 
-Anonymous access and client task creation remain blocked. Other workspace,
-membership, role, and permission management must currently use a trusted
-administrative connection. Leaving individual tasks is no longer supported;
-workspace membership management will be added separately.
+Anonymous access and client task creation remain blocked. Workspace role
+management uses the authorized RPCs described below; other direct workspace,
+membership, role, and permission writes remain blocked. Leaving individual
+tasks is no longer supported.
 
 Authenticated users can call `public.create_workspace(workspace_name)` to
 create a workspace and assign themselves the shared `workspace.owner` role
@@ -62,7 +62,7 @@ supports reverse lookups.
 
 Authenticated users can read system roles, their workspaces' custom roles,
 associated permission mappings, and permission definitions. Client writes to
-these tables remain blocked, preventing users from escalating their privileges.
+these tables remain blocked; authorized role changes use narrowly scoped RPCs.
 Permission checks use narrowly scoped security-definer functions in the
 unexposed `private` schema to avoid recursive RLS on membership tables.
 
@@ -74,6 +74,39 @@ system roles and permission mappings:
 | `workspace.owner` | Yes | Yes | Yes |
 | `workspace.editor` | Yes | Yes | No |
 | `workspace.viewer` | Yes | No | No |
+
+The owner role also receives `roles.read`, `roles.create`, `roles.update`,
+`roles.delete`, and `roles.members.remove`. Editors and viewers do not receive
+role-management permissions by default. The role-management migration adds
+these definitions and owner mappings to existing databases, without requiring
+a reset or rerunning the seed.
+
+### Workspace role management RPCs
+
+All RPCs below require an authenticated workspace membership and the indicated
+permission. They use security-definer functions with an empty search path and
+explicit authenticated-only execute grants; direct table writes stay blocked.
+
+| Function | Required permission | Behavior |
+| --- | --- | --- |
+| `list_workspace_roles` | `roles.read` | Returns scoped roles, member counts, permission IDs, definitions, and caller capabilities. Name/UUID cursor pagination and case-insensitive name filtering support infinite scrolling. |
+| `save_workspace_role_permissions` | `roles.update` | Replaces a custom role's permission mappings atomically after locking the role. Validates permission IDs and compares `expected_permission_ids` to prevent overwriting stale edits. |
+| `list_workspace_role_members` | `roles.read` | Returns only users assigned to the given role in this workspace, including display name and email. Uses a user UUID cursor. |
+| `remove_workspace_role_member` | `roles.members.remove` | Deletes the exact workspace/user/role membership. This revokes workspace access without deleting the account or affecting other workspaces. The last workspace owner cannot be removed. |
+| `duplicate_workspace_role` | `roles.create` | Clones saved permission mappings into a new workspace custom role with a unique copy name. Does not copy memberships. |
+| `delete_workspace_role` | `roles.delete` | Deletes only empty custom roles in the current workspace. Remove their members first. |
+
+System roles are shared and cannot be edited or deleted through these RPCs.
+To customize one, duplicate it into a workspace-specific role. Custom role
+changes apply to all users with that role. Role-management permissions are
+administrative capabilities: a caller with `roles.update` can grant any defined
+permission to a custom role. Only delegate that capability to trusted managers.
+Creation and assignment/add-member workflows are not implemented yet.
+
+Both list RPCs accept page sizes from 1 to 100 and return one extra lookahead
+row so clients know whether another page exists. The UI requests ten rows and
+uses the last displayed row as its next cursor. Member counts cover the entire
+role, not just the loaded page.
 
 The seed can be run repeatedly without duplicating rows or changing IDs.
 Names resolve permission definitions; membership and role-permission
@@ -88,7 +121,9 @@ Run the workspace access tests against local Supabase:
 npx supabase test db
 ```
 
-The tests run in a rolled-back transaction and cover role permissions,
-workspace isolation, membership removal, and deletion cascades.
+The tests run in rolled-back transactions and cover task permissions,
+workspace isolation, membership removal, deletion cascades, role RPC
+authorization, system-role immutability, stale permission writes, pagination,
+duplication without members, and last-owner protection.
 
 [Back to project documentation](../README.md)

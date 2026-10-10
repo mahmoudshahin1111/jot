@@ -81,6 +81,21 @@ The creation page validates the name and calls `create_workspace`, creating
 the workspace and assigning the creator `workspace.owner` atomically.
 Both workspace pages require a session, and loading errors offer a retry
 instead of being treated as an empty workspace list.
+Roles and permissions is at `/workspaces/:workspaceId/settings/roles`. This page
+uses live Supabase data rather than mock roles. It requires `roles.read` and
+shows one row per seeded permission, with read-only system roles and editable
+custom roles when the caller has `roles.update`. Unsaved edits show Save and
+Discard actions; saving persists the entire selection atomically.
+Roles and members load ten rows at a time with automatic infinite scrolling
+and a Load more fallback. Filtering searches all available roles, not just
+the loaded page. Duplication copies saved permissions into a custom role
+without members. Member removal revokes that workspace membership and updates
+the visible list without reloading it. Other workspaces and the user's Jot
+session are preserved. Empty custom roles can be deleted; system roles cannot.
+Create role and Add members are disabled placeholders for later tickets.
+The page checks membership on focus and every 15 seconds, returning removed
+users to the workspace picker. Supabase enforces access immediately on RPCs
+and RLS-protected queries.
 Production frontend hosting must serve `index.html` for application routes
 such as `/login` and `/signup` so direct links and refreshes work.
 
@@ -117,6 +132,12 @@ The starter screen retains its separate system-color-scheme styles.
 npm run build
 npm run lint
 npx supabase test db
+```
+
+Apply pending migrations to the local database before opening role management:
+
+```powershell
+npx supabase migration up --local
 ```
 
 Database tests require local Supabase to be running and roll back their test data.
