@@ -119,7 +119,7 @@ such as `/login` and `/signup` so direct links and refreshes work.
 ## UI components
 
 The project uses shadcn/ui with the Base Nova preset (Base UI primitives),
-Tailwind CSS v4, a neutral theme, and Lucide icons. Configuration is in
+Tailwind CSS v4, a custom red/zinc theme, and Lucide icons. Configuration is in
 [components.json](../components.json). The initial
 [Button component](../src/components/ui/button.tsx) is installed.
 
@@ -142,7 +142,13 @@ pages and saves the preference in local storage. Light is the default.
 The [useTheme hook](../src/hooks/use-theme.ts) owns theme state, persistence,
 and the HTML class; the [toggle component](../src/components/theme-toggle.tsx)
 uses the installed shadcn Button and Lucide sun/moon icons.
-The starter screen retains its separate system-color-scheme styles.
+The theme uses the same semantic tokens for Tailwind utilities and shadcn.
+Primary buttons use `bg-primary` and `hover:bg-primary-hover`; links use
+`text-primary-text` for theme-specific contrast. Status utilities include
+`text-success`, `text-warning`, and `text-info`. The installed Geist Variable
+font supplies the sans-serif family; the mono family falls back to system fonts
+when Geist Mono is unavailable. The neutral shadcn registry base remains selected
+for generating components, while the CSS variables define the custom palette.
 
 ## Validation
 ```powershell

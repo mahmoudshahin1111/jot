@@ -86,7 +86,7 @@ export function LoginPage() {
             </fieldset>
           </form>
           <p className="mt-5 text-center text-sm text-muted-foreground">
-            New to Jot? <Link to="/signup" className="font-medium text-primary underline underline-offset-4">Create an account</Link>
+            New to Jot? <Link to="/signup" className="font-medium text-primary-text underline underline-offset-4">Create an account</Link>
           </p>
     </AuthLayout>
   )

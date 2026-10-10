@@ -119,7 +119,7 @@ export function SignupPage() {
             </form>
           )}
       <p className="mt-5 text-center text-sm text-muted-foreground">
-        Already have an account? <Link to="/login" className="font-medium text-primary underline underline-offset-4">Sign in</Link>
+        Already have an account? <Link to="/login" className="font-medium text-primary-text underline underline-offset-4">Sign in</Link>
       </p>
     </AuthLayout>
   )
