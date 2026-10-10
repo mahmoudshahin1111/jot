@@ -105,6 +105,10 @@ uses live Supabase data rather than mock roles. It requires `roles.read` and
 shows one row per seeded permission, with read-only system roles and editable
 custom roles when the caller has `roles.update`. Unsaved edits show Save and
 Discard actions; saving persists the entire selection atomically.
+Non-owners cannot edit permissions on the role assigned to them, even with
+`roles.update`; disabled checkboxes explain this restriction in a hover/focus
+tooltip. Workspace owners may update other members' custom roles. System roles
+remain read-only for everyone. The save RPC enforces the self-role restriction.
 Roles and members load ten rows at a time with automatic infinite scrolling
 and a Load more fallback. Roles and permissions use `name` for human-readable
 display (Owner, Editor, Viewer, or a custom name) and `key` for machine-readable

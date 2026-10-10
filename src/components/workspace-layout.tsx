@@ -32,6 +32,7 @@ function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
   return (
     <WorkspaceNavigationContext.Provider value={{
       registerGuard: shell.registerGuard, checkAccess: shell.checkAccess, permissions: shell.permissions,
+      roleId: shell.roleId, isOwner: shell.isOwner,
     }}>
       <div className="min-h-svh md:flex">
         <aside className="flex flex-col border-b bg-card px-3 py-5 md:sticky md:top-0 md:h-svh md:w-52 md:shrink-0 md:border-r md:border-b-0">

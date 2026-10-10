@@ -10,6 +10,7 @@ export type Workspace = z.infer<typeof workspaceSchema>
 
 const workspaceAccessSchema = workspaceSchema.extend({
   role_id: z.string().uuid(),
+  is_owner: z.boolean(),
   permissions: z.array(z.string()).min(1),
 })
 

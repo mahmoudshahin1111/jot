@@ -114,6 +114,12 @@ To customize one, duplicate it into a workspace-specific role. Custom role
 changes apply to all users with that role. Role-management permissions are
 administrative capabilities: a caller with `roles.update` can grant any defined
 permission to a custom role. Only delegate that capability to trusted managers.
+Non-owners cannot use the save RPC to change the role assigned to their own
+workspace membership. Ownership means assignment to the shared system role
+with key `workspace.owner`, not simply having `roles.update` or a custom role
+named Owner. The access RPC returns `role_id` and `is_owner` for the UI guard;
+the save RPC independently verifies and locks the caller's membership.
+Owners can manage other users' custom roles; system roles remain immutable.
 Creation and assignment/add-member workflows are not implemented yet.
 
 ### Realtime access notifications

@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { Copy, Plus, Trash2 } from 'lucide-react'
+import { Tooltip } from '@base-ui/react/tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -16,6 +17,45 @@ function RoleBadge({ system }: { system: boolean }) {
   )
 }
 
+function PermissionToggle({ name, checked, disabled, reason, onChange }: {
+  name: string
+  checked: boolean
+  disabled: boolean
+  reason: string | null
+  onChange: () => void
+}) {
+  const checkbox = (
+    <input
+      type="checkbox"
+      className={`size-4 cursor-pointer accent-primary disabled:cursor-not-allowed ${reason ? 'pointer-events-none' : ''}`}
+      checked={checked}
+      disabled={disabled}
+      aria-label={`Allow ${name}`}
+      onChange={onChange}
+    />
+  )
+  if (!reason) return checkbox
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        render={<span />}
+        tabIndex={0}
+        aria-label={`Allow ${name}: editing unavailable`}
+        className="inline-flex rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+      >
+        {checkbox}
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Positioner sideOffset={6}>
+          <Tooltip.Popup role="tooltip" className="z-50 max-w-64 rounded-md bg-foreground px-3 py-2 text-xs text-background shadow-md">
+            {reason}
+          </Tooltip.Popup>
+        </Tooltip.Positioner>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  )
+}
+
 export function RolesPage() {
   const { workspaceId } = useParams()
   if (!workspaceId) return <p role="alert">Workspace ID is required.</p>
@@ -27,7 +67,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
   const { containerRef, sentinelRef } = useInfiniteScroll(() => { void state.loadMore() }, state.hasMore && !state.loading && !state.error)
   const { tab, setTab, handleKeyDown } = useRoleTabs()
   const role = state.selectedRole
-  const canEdit = Boolean(role && !role.is_system && state.metadata?.capabilities.update)
+  const { canEdit } = state
 
   return (
     <main className="mx-auto max-w-7xl px-5 pt-3 pb-24 sm:px-6">
@@ -143,41 +183,44 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                 <p className="text-xs font-medium">You have unsaved changes to {role.name}.</p>
                 <div className="flex gap-2">
                   <Button variant="outline" disabled={state.busy} onClick={state.discard}>Discard changes</Button>
-                  <Button disabled={state.busy} onClick={state.save}>{state.busy ? 'Saving...' : 'Save changes'}</Button>
+                  <Button disabled={state.busy || !canEdit} onClick={state.save}>{state.busy ? 'Saving...' : 'Save changes'}</Button>
                 </div>
               </div>
             )}
             {tab === 'permissions' ? (
               <div role="tabpanel" id="permissions-panel" aria-labelledby="permissions-tab" className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b text-xs text-muted-foreground">
-                      <th scope="col" className="pb-3 font-normal">Permission</th>
-                      <th scope="col" className="w-24 pb-3 text-center font-normal">Allowed</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {state.metadata.permissions.map(permission => (
-                      <tr key={permission.id}>
-                        <th scope="row" className="py-3 pr-4 font-normal">
-                          <span className="block font-medium">{permission.name}</span>
-                          <span className="mt-1 block text-xs text-muted-foreground">{permission.description}</span>
-                        </th>
-                        <td className="py-3 text-center">
-                          <input
-                            type="checkbox"
-                            className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
-                            checked={state.draft.includes(permission.id)}
-                            disabled={!canEdit || state.busy}
-                            aria-label={`Allow ${permission.name}`}
-                            onChange={() => state.togglePermission(permission.id)}
-                          />
-                        </td>
+                <Tooltip.Provider>
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b text-xs text-muted-foreground">
+                        <th scope="col" className="pb-3 font-normal">Permission</th>
+                        <th scope="col" className="w-24 pb-3 text-center font-normal">Allowed</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!role.is_system && !canEdit && <p className="mt-3 text-xs text-muted-foreground">You need roles.update permission to edit this role.</p>}
+                    </thead>
+                    <tbody className="divide-y">
+                      {state.metadata.permissions.map(permission => (
+                        <tr key={permission.id}>
+                          <th scope="row" className="py-3 pr-4 font-normal">
+                            <span className="block font-medium">{permission.name}</span>
+                            <span className="mt-1 block text-xs text-muted-foreground">{permission.description}</span>
+                          </th>
+                          <td className="py-3 text-center">
+                            <PermissionToggle
+                              name={permission.name}
+                              checked={state.draft.includes(permission.id)}
+                              disabled={!canEdit || state.busy}
+                              reason={state.permissionEditReason}
+                              onChange={() => state.togglePermission(permission.id)}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Tooltip.Provider>
+                {state.permissionEditReason
+                  ? <p className="mt-3 text-xs text-muted-foreground">{state.permissionEditReason}</p>
+                  : !role.is_system && !canEdit && <p className="mt-3 text-xs text-muted-foreground">You need roles.update permission to edit this role.</p>}
               </div>
             ) : (
               <RoleMembers

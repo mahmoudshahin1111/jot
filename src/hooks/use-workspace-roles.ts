@@ -17,7 +17,7 @@ export function roleErrorMessage(error: unknown) {
 export function useWorkspaceRoles(workspaceId: string) {
   const navigation = useContext(WorkspaceNavigationContext)
   if (!navigation) throw new Error('Workspace roles require a workspace shell.')
-  const { checkAccess, permissions } = navigation
+  const { checkAccess, permissions, roleId, isOwner } = navigation
   const [roles, setRoles] = useState<WorkspaceRole[]>([])
   const [metadata, setMetadata] = useState<Omit<RolesPage, 'roles'> | null>(null)
   const [selectedRole, setSelectedRole] = useState<WorkspaceRole | null>(null)
@@ -40,6 +40,12 @@ export function useWorkspaceRoles(workspaceId: string) {
     draft.length !== selectedRole.permission_ids.length
     || draft.some(id => !selectedRole.permission_ids.includes(id))
   )
+  const selfRoleEditBlocked = selectedRole !== null && selectedRole.id === roleId && !isOwner
+  const permissionEditReason = selfRoleEditBlocked
+    ? 'You cannot update a role assigned to you. Only the workspace owner can do this.'
+    : null
+  const canEdit = Boolean(selectedRole && !selectedRole.is_system
+    && permissions.includes(PERMISSIONS.roles.update) && !selfRoleEditBlocked)
 
   useEffect(() => {
     if (!navigation) return
@@ -127,7 +133,7 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   function togglePermission(id: string) {
-    if (busy || selectedRole?.is_system || !permissions.includes(PERMISSIONS.roles.update)) return
+    if (busy || !canEdit) return
     setDraft(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id])
     setNotice('')
   }
@@ -157,7 +163,7 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   function save() {
-    if (!selectedRole || !dirty) return
+    if (!selectedRole || !dirty || !canEdit) return
     const role = selectedRole
     void runAction(async () => {
       await saveRolePermissions(workspaceId, role, draft)
@@ -210,7 +216,7 @@ export function useWorkspaceRoles(workspaceId: string) {
         delete: permissions.includes(PERMISSIONS.roles.delete),
         remove_members: permissions.includes(PERMISSIONS.roles.removeMembers),
       },
-    }, selectedRole, draft, dirty, filter, setFilter, loading, hasMore,
+    }, selectedRole, draft, dirty, canEdit, permissionEditReason, filter, setFilter, loading, hasMore,
     error, actionError, busy, notice, loadMore, selectRole, togglePermission, discard, save, duplicate,
     searching: search !== '',
     confirmLeave: () => !dirty || window.confirm('Discard unsaved permission changes and leave this page?'),

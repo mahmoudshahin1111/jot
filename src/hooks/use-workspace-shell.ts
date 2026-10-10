@@ -8,6 +8,8 @@ export const WorkspaceNavigationContext = createContext<{
   registerGuard: (guard: () => boolean) => () => void
   checkAccess: () => Promise<boolean>
   permissions: string[]
+  roleId: string | null
+  isOwner: boolean
 } | null>(null)
 
 export function useWorkspaceShell(workspaceId: string) {
@@ -21,6 +23,8 @@ export function useWorkspaceShell(workspaceId: string) {
   const [connectionError, setConnectionError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [permissions, setPermissions] = useState<string[]>([])
+  const [roleId, setRoleId] = useState<string | null>(null)
+  const [isOwner, setIsOwner] = useState(false)
   const guardRef = useRef<(() => boolean) | null>(null)
   const activeRef = useRef(false)
   const requestRef = useRef(Symbol())
@@ -56,6 +60,8 @@ export function useWorkspaceShell(workspaceId: string) {
     }
     setWorkspace(result)
     setPermissions(result.permissions)
+    setRoleId(result.role_id)
+    setIsOwner(result.is_owner)
     setError(null)
     return true
   }, [navigate, workspaceId])
@@ -138,5 +144,5 @@ export function useWorkspaceShell(workspaceId: string) {
     void checkAccess().catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to verify workspace access.'))
   }, [pathname, checkAccess])
 
-  return { workspace, error: error ?? connectionError, registerGuard, confirmNavigation, checkAccess, permissions, retry: () => setAttempt(value => value + 1) }
+  return { workspace, error: error ?? connectionError, registerGuard, confirmNavigation, checkAccess, permissions, roleId, isOwner, retry: () => setAttempt(value => value + 1) }
 }
