@@ -1,5 +1,9 @@
 # Local development
 
+Shared development guidance belongs in
+[Development principles](./DEVELOPMENT_PRINCIPLES.md), the single source of
+truth for principles used across the project.
+
 ## Prerequisites
 
 - Node.js 22.12 or later in the 22.x line, or a newer supported LTS release

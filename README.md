@@ -5,6 +5,8 @@ Supabase.
 
 ## Documentation
 
+- [Development principles](./docs/DEVELOPMENT_PRINCIPLES.md) - shared guidance
+  for making development decisions.
 - [Local development](./docs/README.md) - prerequisites, setup, and running locally.
 - [Database and access control](./docs/database.md) - workspaces, roles,
   permissions, and RLS policies.
