@@ -105,6 +105,11 @@ import { Button } from '@/components/ui/button'
 
 Theme tokens are in [src/index.css](../src/index.css). Dark component styling
 is activated by a `dark` class on an ancestor, typically the HTML element.
+The floating bottom-right theme button switches between light and dark on all
+pages and saves the preference in local storage. Light is the default.
+The [useTheme hook](../src/hooks/use-theme.ts) owns theme state, persistence,
+and the HTML class; the [toggle component](../src/components/theme-toggle.tsx)
+uses the installed shadcn Button and Lucide sun/moon icons.
 The starter screen retains its separate system-color-scheme styles.
 
 ## Validation
