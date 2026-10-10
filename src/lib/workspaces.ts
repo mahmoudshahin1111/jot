@@ -24,3 +24,10 @@ export async function createWorkspace(name: string) {
   if (error) throw new Error(error.message)
   return z.string().uuid().parse(data)
 }
+
+export async function getWorkspace(id: string) {
+  const { data, error } = await supabase.from('workspaces')
+    .select('id, name').eq('id', id).maybeSingle()
+  if (error) throw new Error(error.message)
+  return data === null ? null : workspaceSchema.parse(data)
+}

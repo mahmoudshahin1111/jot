@@ -107,7 +107,14 @@ export function WorkspacesPage({ create = false }: { create?: boolean }) {
       ) : (
         <div className="space-y-4">
           <ul className="space-y-2">
-            {workspaces.map(workspace => <li key={workspace.id} className="rounded-lg border p-3">{workspace.name}</li>)}
+            {workspaces.map(workspace => (
+              <li key={workspace.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+                <Link to={`/workspaces/${workspace.id}`} className="flex w-full items-center justify-between gap-3 text-sm font-medium hover:text-primary-text">
+                  <span>{workspace.name}</span>
+                  <span className="shrink-0 text-primary-text">Open workspace</span>
+                </Link>
+              </li>
+            ))}
           </ul>
           <Link to="/workspaces/new" className="text-sm font-medium underline">Create another workspace</Link>
           <p className="text-sm text-muted-foreground">Task management is coming next.</p>

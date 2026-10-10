@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
+import { WorkspaceNavigationContext } from '@/hooks/use-workspace-shell'
 import {
   deleteRole, duplicateRole, getRoles, rolePageSize, saveRolePermissions,
   type RolesPage, type WorkspaceRole,
@@ -16,6 +17,7 @@ export function roleErrorMessage(error: unknown) {
 
 export function useWorkspaceRoles(workspaceId: string) {
   const navigate = useNavigate()
+  const navigation = useContext(WorkspaceNavigationContext)
   const [roles, setRoles] = useState<WorkspaceRole[]>([])
   const [metadata, setMetadata] = useState<Omit<RolesPage, 'roles'> | null>(null)
   const [selectedRole, setSelectedRole] = useState<WorkspaceRole | null>(null)
@@ -38,6 +40,13 @@ export function useWorkspaceRoles(workspaceId: string) {
     draft.length !== selectedRole.permission_ids.length
     || draft.some(id => !selectedRole.permission_ids.includes(id))
   )
+
+  useEffect(() => {
+    if (!navigation) return
+    return navigation.registerGuard(() => !busy && (
+      !dirty || window.confirm('Discard unsaved permission changes and leave this page?')
+    ))
+  }, [busy, dirty, navigation])
 
   useEffect(() => {
     if (!dirty) return
