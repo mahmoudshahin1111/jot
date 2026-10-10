@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabaseClient'
 export const roleSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
+  label: z.string().trim().min(1),
   is_system: z.boolean(),
   member_count: z.number(),
   permission_ids: z.array(z.string().uuid()),
@@ -12,6 +13,7 @@ export const roleSchema = z.object({
 const permissionSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
+  label: z.string().trim().min(1),
   description: z.string(),
 })
 
@@ -80,7 +82,7 @@ export async function duplicateRole(workspaceId: string, roleId: string) {
   if (error) throw error
   const id = z.string().uuid().parse(data)
   const [roleResult, permissionsResult] = await Promise.all([
-    supabase.from('roles').select('id, name, is_system').eq('id', id).single(),
+    supabase.from('roles').select('id, name, label, is_system').eq('id', id).single(),
     supabase.from('role_permissions').select('permission_id').eq('role_id', id),
   ])
   if (roleResult.error) throw roleResult.error

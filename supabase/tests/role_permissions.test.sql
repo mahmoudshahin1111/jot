@@ -13,9 +13,9 @@ $$;
 insert into auth.users (id) values (pg_temp.f('owner')), (pg_temp.f('viewer'));
 insert into public.workspaces (id, name) values
   (pg_temp.f('workspace'), 'Role permissions test'), (pg_temp.f('other_workspace'), 'Other workspace');
-insert into public.roles (id, name, workspace_id) values
-  (pg_temp.f('custom'), 'Custom test', pg_temp.f('workspace')),
-  (pg_temp.f('foreign_role'), 'Foreign test', pg_temp.f('other_workspace'));
+insert into public.roles (id, name, label, workspace_id) values
+  (pg_temp.f('custom'), 'Custom test', 'Custom test', pg_temp.f('workspace')),
+  (pg_temp.f('foreign_role'), 'Foreign test', 'Foreign test', pg_temp.f('other_workspace'));
 insert into public.workspace_users (workspace_id, user_id, role_id)
 select pg_temp.f('workspace'), pg_temp.f('owner'), id from public.roles where is_system and name = 'workspace.owner'
 union all

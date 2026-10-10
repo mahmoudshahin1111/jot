@@ -48,6 +48,18 @@ is checked through the RLS-protected workspace query.
 The `public.roles` and `public.permissions` tables each have a generated UUID
 and a required, unique, non-empty name. Permissions also have a description
 defaulting to an empty string.
+Permissions have a required, non-blank `label` for human-readable display
+(for example, `View tasks`). The roles table and checkbox accessible names use
+this label. The unique `name` remains the machine-readable authorization key
+(for example, `tasks.read`); labels do not affect permission checks or UUID
+mappings. The label migration backfills existing records without changing IDs,
+and the seed maintains labels alongside descriptions.
+Roles also have a required, non-blank `label`. Shared system roles display
+Owner, Editor, and Viewer while keeping their `workspace.*` machine names.
+Existing custom roles retain their names as their initial labels. The role
+list, heading, and messages display labels; filtering searches labels.
+Duplication copies the source label with the same copy suffix as the new
+machine name. Pagination and authorization continue using machine names and IDs.
 
 System roles have `is_system = true` and no workspace ID; they are shared across
 workspaces. Custom roles have `is_system = false` and a required `workspace_id`.
@@ -89,7 +101,7 @@ explicit authenticated-only execute grants; direct table writes stay blocked.
 
 | Function | Required permission | Behavior |
 | --- | --- | --- |
-| `list_workspace_roles` | `roles.read` | Returns scoped roles, member counts, permission IDs, definitions, and caller capabilities. Name/UUID cursor pagination and case-insensitive name filtering support infinite scrolling. |
+| `list_workspace_roles` | `roles.read` | Returns scoped roles with labels, member counts, permission IDs, definitions, and caller capabilities. Machine-name/UUID cursor pagination and case-insensitive label filtering support infinite scrolling. |
 | `save_workspace_role_permissions` | `roles.update` | Replaces a custom role's permission mappings atomically after locking the role. Validates permission IDs and compares `expected_permission_ids` to prevent overwriting stale edits. |
 | `list_workspace_role_members` | `roles.read` | Returns only users assigned to the given role in this workspace, including display name and email. Uses a user UUID cursor. |
 | `remove_workspace_role_member` | `roles.members.remove` | Deletes the exact workspace/user/role membership. This revokes workspace access without deleting the account or affecting other workspaces. The last workspace owner cannot be removed. |

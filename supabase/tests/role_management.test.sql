@@ -13,9 +13,9 @@ $$;
 insert into auth.users (id) values (pg_temp.f('owner')), (pg_temp.f('viewer'));
 insert into public.workspaces (id, name) values
   (pg_temp.f('workspace'), 'Role management test'), (pg_temp.f('other_workspace'), 'Other workspace');
-insert into public.roles (id, name, workspace_id) values
-  (pg_temp.f('custom'), 'A custom test', pg_temp.f('workspace')),
-  (pg_temp.f('foreign_role'), 'Foreign test', pg_temp.f('other_workspace'));
+insert into public.roles (id, name, label, workspace_id) values
+  (pg_temp.f('custom'), 'A custom test', 'A custom test', pg_temp.f('workspace')),
+  (pg_temp.f('foreign_role'), 'Foreign test', 'Foreign test', pg_temp.f('other_workspace'));
 insert into public.role_permissions (role_id, permission_id)
 select pg_temp.f('custom'), id from public.permissions where name = 'tasks.read';
 insert into public.workspace_users (workspace_id, user_id, role_id)

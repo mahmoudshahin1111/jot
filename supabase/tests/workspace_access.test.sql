@@ -31,10 +31,10 @@ values
   (pg_temp.fixture_id('task_b'), 'Task B', pg_temp.fixture_id('workspace_b')),
   (pg_temp.fixture_id('task_c'), 'Task C', pg_temp.fixture_id('workspace_c'));
 
-insert into public.roles (id, name, workspace_id)
+insert into public.roles (id, name, label, workspace_id)
 values
-  (pg_temp.fixture_id('custom_role_b'), 'custom.reader', pg_temp.fixture_id('workspace_b')),
-  (pg_temp.fixture_id('custom_role_c'), 'custom.reader', pg_temp.fixture_id('workspace_c'));
+  (pg_temp.fixture_id('custom_role_b'), 'custom.reader', 'Custom reader', pg_temp.fixture_id('workspace_b')),
+  (pg_temp.fixture_id('custom_role_c'), 'custom.reader', 'Custom reader', pg_temp.fixture_id('workspace_c'));
 
 insert into public.role_permissions (role_id, permission_id)
 select pg_temp.fixture_id('custom_role_b'), id from public.permissions where name = 'tasks.read';
@@ -71,13 +71,13 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.roles (name) values ('unscoped.custom')$$,
+  $$insert into public.roles (name, label) values ('unscoped.custom', 'Unscoped custom')$$,
   '23514', null, 'Custom roles require a workspace'
 );
 
 select throws_ok(
-  $$insert into public.roles (name, is_system, workspace_id)
-    values ('scoped.system', true, pg_temp.fixture_id('workspace_a'))$$,
+  $$insert into public.roles (name, label, is_system, workspace_id)
+    values ('scoped.system', 'Scoped system', true, pg_temp.fixture_id('workspace_a'))$$,
   '23514', null, 'System roles must be global'
 );
 

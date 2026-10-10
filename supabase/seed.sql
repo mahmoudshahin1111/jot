@@ -1,22 +1,22 @@
-insert into public.permissions (name, description)
+insert into public.permissions (name, label, description)
 values
-  ('tasks.read', 'Read tasks.'),
-  ('tasks.update', 'Update tasks.'),
-  ('tasks.delete', 'Delete tasks for all workspace members.'),
-  ('roles.read', 'View workspace roles and their members.'),
-  ('roles.create', 'Duplicate roles into workspace custom roles.'),
-  ('roles.update', 'Update custom role permissions.'),
-  ('roles.delete', 'Delete empty custom roles.'),
-  ('roles.members.remove', 'Remove role members from the workspace.')
+  ('tasks.read', 'View tasks', 'Read tasks.'),
+  ('tasks.update', 'Update tasks', 'Update tasks.'),
+  ('tasks.delete', 'Delete tasks', 'Delete tasks for all workspace members.'),
+  ('roles.read', 'View roles and members', 'View workspace roles and their members.'),
+  ('roles.create', 'Duplicate roles', 'Duplicate roles into workspace custom roles.'),
+  ('roles.update', 'Update role permissions', 'Update custom role permissions.'),
+  ('roles.delete', 'Delete roles', 'Delete empty custom roles.'),
+  ('roles.members.remove', 'Remove workspace members', 'Remove role members from the workspace.')
 on conflict (name) do update
-set description = excluded.description;
+set label = excluded.label, description = excluded.description;
 
-insert into public.roles (name, is_system)
+insert into public.roles (name, label, is_system)
 values
-  ('workspace.owner', true),
-  ('workspace.editor', true),
-  ('workspace.viewer', true)
-on conflict (name) where is_system do nothing;
+  ('workspace.owner', 'Owner', true),
+  ('workspace.editor', 'Editor', true),
+  ('workspace.viewer', 'Viewer', true)
+on conflict (name) where is_system do update set label = excluded.label;
 
 insert into public.role_permissions (role_id, permission_id)
 select roles.id, permissions.id

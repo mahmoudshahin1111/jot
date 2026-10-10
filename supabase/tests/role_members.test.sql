@@ -16,9 +16,9 @@ insert into auth.users (id, email) values
   (pg_temp.f('other_member'), 'other-role-member@example.test');
 insert into public.workspaces (id, name) values
   (pg_temp.f('workspace'), 'Members test'), (pg_temp.f('other_workspace'), 'Other workspace');
-insert into public.roles (id, name, workspace_id) values
-  (pg_temp.f('custom'), 'Member role', pg_temp.f('workspace')),
-  (pg_temp.f('foreign_role'), 'Other member role', pg_temp.f('other_workspace'));
+insert into public.roles (id, name, label, workspace_id) values
+  (pg_temp.f('custom'), 'Member role', 'Member role', pg_temp.f('workspace')),
+  (pg_temp.f('foreign_role'), 'Other member role', 'Other member role', pg_temp.f('other_workspace'));
 insert into public.role_permissions (role_id, permission_id)
 select pg_temp.f('custom'), id from public.permissions where name = 'tasks.read';
 insert into public.workspace_users (workspace_id, user_id, role_id)
