@@ -1,6 +1,4 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { supabase } from '@/lib/supabaseClient'
 import { WorkspaceNavigationContext } from '@/hooks/use-workspace-shell'
 import {
   deleteRole, duplicateRole, getRoles, rolePageSize, saveRolePermissions,
@@ -16,8 +14,9 @@ export function roleErrorMessage(error: unknown) {
 }
 
 export function useWorkspaceRoles(workspaceId: string) {
-  const navigate = useNavigate()
   const navigation = useContext(WorkspaceNavigationContext)
+  if (!navigation) throw new Error('Workspace roles require a workspace shell.')
+  const { checkAccess, permissions } = navigation
   const [roles, setRoles] = useState<WorkspaceRole[]>([])
   const [metadata, setMetadata] = useState<Omit<RolesPage, 'roles'> | null>(null)
   const [selectedRole, setSelectedRole] = useState<WorkspaceRole | null>(null)
@@ -57,23 +56,6 @@ export function useWorkspaceRoles(workspaceId: string) {
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
 
-  const checkAccess = useCallback(async () => {
-    const { data: session, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError) throw sessionError
-    if (!session.session) {
-      navigate('/login', { replace: true })
-      return false
-    }
-    const { data, error: membershipError } = await supabase.from('workspace_users')
-      .select('user_id').eq('workspace_id', workspaceId).eq('user_id', session.session.user.id).maybeSingle()
-    if (membershipError) throw membershipError
-    if (!data) {
-      navigate('/workspaces', { replace: true })
-      return false
-    }
-    return true
-  }, [navigate, workspaceId])
-
   useEffect(() => {
     const timeout = setTimeout(() => setSearch(filter.trim()), 250)
     return () => clearTimeout(timeout)
@@ -88,7 +70,6 @@ export function useWorkspaceRoles(workspaceId: string) {
       setRoles([])
       setHasMore(false)
       try {
-        if (!await checkAccess()) return
         const page = await getRoles(workspaceId, search)
         if (generation.current !== current) return
         setRoles(page.roles.slice(0, rolePageSize))
@@ -114,18 +95,6 @@ export function useWorkspaceRoles(workspaceId: string) {
       generation.current = current + 1
     }
   }, [checkAccess, revision, search, workspaceId])
-
-  useEffect(() => {
-    function verify() {
-      void checkAccess().catch(cause => setError(roleErrorMessage(cause)))
-    }
-    const timer = setInterval(verify, 15000)
-    window.addEventListener('focus', verify)
-    return () => {
-      clearInterval(timer)
-      window.removeEventListener('focus', verify)
-    }
-  }, [checkAccess])
 
   const loadMore = useCallback(async () => {
     if (fetching.current || !hasMore || error || roles.length === 0) return
@@ -157,7 +126,7 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   function togglePermission(id: string) {
-    if (busy || selectedRole?.is_system || !metadata?.capabilities.update) return
+    if (busy || selectedRole?.is_system || !permissions.includes('roles.update')) return
     setDraft(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id])
     setNotice('')
   }
@@ -232,7 +201,15 @@ export function useWorkspaceRoles(workspaceId: string) {
   }, [])
 
   return {
-    roles, metadata, selectedRole, draft, dirty, filter, setFilter, loading, hasMore,
+    roles, metadata: metadata && {
+      ...metadata,
+      capabilities: {
+        update: permissions.includes('roles.update'),
+        create: permissions.includes('roles.create'),
+        delete: permissions.includes('roles.delete'),
+        remove_members: permissions.includes('roles.members.remove'),
+      },
+    }, selectedRole, draft, dirty, filter, setFilter, loading, hasMore,
     error, actionError, busy, notice, loadMore, selectRole, togglePermission, discard, save, duplicate,
     searching: search !== '',
     confirmLeave: () => !dirty || window.confirm('Discard unsaved permission changes and leave this page?'),

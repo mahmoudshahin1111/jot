@@ -110,9 +110,14 @@ without members. Member removal revokes that workspace membership and updates
 the visible list without reloading it. Other workspaces and the user's Jot
 session are preserved. Empty custom roles can be deleted; system roles cannot.
 Create role and Add members are disabled placeholders for later tickets.
-The page checks membership on focus and every 15 seconds, returning removed
-users to the workspace picker. Supabase enforces access immediately on RPCs
-and RLS-protected queries.
+The workspace shell subscribes to private Supabase Realtime broadcasts over
+WebSockets. Membership changes and changes to the user's assigned role permissions
+trigger an authorized access check, without periodic polling. Access is also
+checked on navigation, focus, and subscription reconnect. Removed users and users
+whose role has no permissions return to the workspace picker without signing out;
+losing only `roles.read` returns users to Dashboard. Role capabilities refresh
+after access notifications. Connection failures display an error with a retry.
+Supabase enforces access immediately on RPCs and RLS-protected queries.
 Production frontend hosting must serve `index.html` for application routes
 such as `/login` and `/signup` so direct links and refreshes work.
 

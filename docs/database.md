@@ -101,6 +101,7 @@ explicit authenticated-only execute grants; direct table writes stay blocked.
 
 | Function | Required permission | Behavior |
 | --- | --- | --- |
+| `get_workspace_access` | Membership with at least one permission | Returns the caller's workspace, assigned role ID, and permission keys, or null when access is revoked. Authenticated-only; no arbitrary user lookup. |
 | `list_workspace_roles` | `roles.read` | Returns scoped roles with labels, member counts, permission IDs, definitions, and caller capabilities. Machine-name/UUID cursor pagination and case-insensitive label filtering support infinite scrolling. |
 | `save_workspace_role_permissions` | `roles.update` | Replaces a custom role's permission mappings atomically after locking the role. Validates permission IDs and compares `expected_permission_ids` to prevent overwriting stale edits. |
 | `list_workspace_role_members` | `roles.read` | Returns only users assigned to the given role in this workspace, including display name and email. Uses a user UUID cursor. |
@@ -114,6 +115,21 @@ changes apply to all users with that role. Role-management permissions are
 administrative capabilities: a caller with `roles.update` can grant any defined
 permission to a custom role. Only delegate that capability to trusted managers.
 Creation and assignment/add-member workflows are not implemented yet.
+
+### Realtime access notifications
+
+The access migration broadcasts committed membership and role-permission
+changes through `realtime.send` to private `workspace-access:<user UUID>` topics.
+Role-permission notifications go only to users assigned to the changed role;
+membership deletion notifies the removed user even after workspace access is lost.
+The payload contains a workspace ID, not permission or member data. A SELECT
+policy on `realtime.messages` permits receiving only the authenticated user's
+topic; no client broadcast write policy is added. These notifications invalidate
+client access state; RLS and RPC checks remain the authorization authority.
+Realtime must be enabled in the deployed Supabase project. No Postgres Changes
+publication or replica-identity changes are needed for database Broadcast.
+The workspace SELECT policy also requires at least one assigned permission,
+so revoked workspaces disappear from the picker and direct workspace queries.
 
 Both list RPCs accept page sizes from 1 to 100 and return one extra lookahead
 row so clients know whether another page exists. The UI requests ten rows and
