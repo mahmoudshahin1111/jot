@@ -25,6 +25,9 @@ export function useWorkspaceShell(workspaceId: string) {
   const [permissions, setPermissions] = useState<string[]>([])
   const [roleId, setRoleId] = useState<string | null>(null)
   const [isOwner, setIsOwner] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+  const logoutInFlight = useRef(false)
   const guardRef = useRef<(() => boolean) | null>(null)
   const activeRef = useRef(false)
   const requestRef = useRef(Symbol())
@@ -37,6 +40,32 @@ export function useWorkspaceShell(workspaceId: string) {
   }, [])
 
   const confirmNavigation = useCallback(() => guardRef.current?.() ?? true, [])
+
+  async function logout() {
+    if (logoutInFlight.current || !confirmNavigation()) return
+    logoutInFlight.current = true
+    setLoggingOut(true)
+    setLogoutError(null)
+    try {
+      const { error: signOutError } = await supabase.auth.signOut()
+      if (signOutError) throw signOutError
+      navigate('/login', { replace: true })
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unable to log out. Please try again.'
+      setLogoutError(message)
+      const { data, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) setLogoutError(`${message} ${sessionError.message}`)
+      else if (!data.session) {
+        navigate('/login', {
+          replace: true,
+          state: { logoutError: `You are logged out on this browser, but server sign-out failed: ${message}` },
+        })
+      }
+    } finally {
+      logoutInFlight.current = false
+      setLoggingOut(false)
+    }
+  }
 
   const checkAccess = useCallback(async () => {
     const request = Symbol()
@@ -55,7 +84,8 @@ export function useWorkspaceShell(workspaceId: string) {
       return false
     }
     if (!result.permissions.includes(PERMISSIONS.roles.read)
-      && pathnameRef.current === `/workspaces/${workspaceId}/settings/roles`) {
+      && (pathnameRef.current === `/workspaces/${workspaceId}/settings/roles`
+        || pathnameRef.current === `/workspaces/${workspaceId}/settings/users`)) {
       navigate(`/workspaces/${workspaceId}/dashboard`, { replace: true })
     }
     setWorkspace(result)
@@ -116,7 +146,7 @@ export function useWorkspaceShell(workspaceId: string) {
     void verify()
     void subscribe()
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') navigate('/login', { replace: true })
+      if (event === 'SIGNED_OUT' && !logoutInFlight.current) navigate('/login', { replace: true })
       else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (subscribedUserId && session?.user.id !== subscribedUserId) setAttempt(value => value + 1)
         else scheduleVerification()
@@ -144,5 +174,5 @@ export function useWorkspaceShell(workspaceId: string) {
     void checkAccess().catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to verify workspace access.'))
   }, [pathname, checkAccess])
 
-  return { workspace, error: error ?? connectionError, registerGuard, confirmNavigation, checkAccess, permissions, roleId, isOwner, retry: () => setAttempt(value => value + 1) }
+  return { workspace, error: error ?? connectionError, registerGuard, confirmNavigation, checkAccess, permissions, roleId, isOwner, logout, loggingOut, logoutError, retry: () => setAttempt(value => value + 1) }
 }

@@ -93,5 +93,6 @@ export function useRoleMembers(
   return {
     members, total, hasMore, loading, error, actionError, removing, notice, loadMore, remove,
     retry: () => setRevision(value => value + 1),
+    refresh: () => setRevision(value => value + 1),
   }
 }

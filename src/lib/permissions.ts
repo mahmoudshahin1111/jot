@@ -10,6 +10,7 @@ export const PERMISSIONS = {
     update: 'roles.update',
     delete: 'roles.delete',
     removeMembers: 'roles.members.remove',
+    addMembers: 'roles.members.add',
   },
 } as const
 

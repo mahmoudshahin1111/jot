@@ -38,9 +38,45 @@ const rolesPageSchema = z.object({
 export type WorkspaceRole = z.infer<typeof roleSchema>
 export type Permission = z.infer<typeof permissionSchema>
 export type RoleMember = z.infer<typeof memberSchema>
+const candidateSchema = memberSchema.extend({
+  role_id: z.string().uuid(),
+  role_name: z.string(),
+})
+export type RoleMemberCandidate = z.infer<typeof candidateSchema>
+
+export async function getRoleMemberCandidates(workspaceId: string, roleId: string, search: string, after?: string) {
+  const { data, error } = await supabase.rpc('list_workspace_role_candidates', {
+    target_workspace_id: workspaceId, target_role_id: roleId,
+    search_term: search, after_user_id: after ?? null, page_size: rolePageSize,
+  })
+  if (error) throw error
+  return z.array(candidateSchema).parse(data)
+}
+
+export async function addRoleMember(workspaceId: string, roleId: string, member: RoleMemberCandidate) {
+  const { error } = await supabase.rpc('assign_workspace_role_member', {
+    target_workspace_id: workspaceId, target_role_id: roleId,
+    target_user_id: member.user_id, expected_role_id: member.role_id,
+  })
+  if (error) throw error
+}
 export type RolesPage = z.infer<typeof rolesPageSchema>
 
 export const rolePageSize = 10
+
+export const createRoleSchema = z.object({
+  name: z.string().trim().min(1, 'Role name is required.'),
+})
+
+export async function createRole(workspaceId: string, name: string) {
+  const input = createRoleSchema.parse({ name })
+  const { data, error } = await supabase.rpc('create_workspace_role', {
+    target_workspace_id: workspaceId,
+    role_name: input.name,
+  })
+  if (error) throw error
+  return roleSchema.parse(data)
+}
 
 export async function getRoles(workspaceId: string, search: string, after?: WorkspaceRole) {
   const { data, error } = await supabase.rpc('list_workspace_roles', {

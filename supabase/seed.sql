@@ -4,9 +4,10 @@ values
   ('tasks.update', 'Update tasks', 'Update tasks.'),
   ('tasks.delete', 'Delete tasks', 'Delete tasks for all workspace members.'),
   ('roles.read', 'View roles and members', 'View workspace roles and their members.'),
-  ('roles.create', 'Duplicate roles', 'Duplicate roles into workspace custom roles.'),
+  ('roles.create', 'Create and duplicate roles', 'Create empty custom roles or duplicate existing roles in the workspace.'),
   ('roles.update', 'Update role permissions', 'Update custom role permissions.'),
   ('roles.delete', 'Delete roles', 'Delete empty custom roles.'),
+  ('roles.members.add', 'Assign workspace members', 'Assign existing workspace users to a role, replacing their current role.'),
   ('roles.members.remove', 'Remove workspace members', 'Remove role members from the workspace.')
 on conflict (key) do update
 set name = excluded.name, description = excluded.description;

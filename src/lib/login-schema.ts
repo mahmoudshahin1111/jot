@@ -6,3 +6,5 @@ export const loginSchema = z.object({
 })
 
 export type LoginValues = z.infer<typeof loginSchema>
+
+export const emailLinkLoginSchema = loginSchema.extend({ password: z.string() })

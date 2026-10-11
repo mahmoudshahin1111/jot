@@ -1,31 +1,50 @@
+import { useState } from 'react'
 import { Plus } from 'lucide-react'
+import { AddRoleMembersDialog } from '@/components/add-role-members-dialog'
 import { Button } from '@/components/ui/button'
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
 import { useRoleMembers } from '@/hooks/use-role-members'
 
 export function RoleMembers({
-  workspaceId, roleId, roleName, canRemove, updateCount, checkAccess,
+  workspaceId, roleId, roleName, canRemove, canAdd, updateCount, refreshRoles, checkAccess,
 }: {
   workspaceId: string
   roleId: string
   roleName: string
   canRemove: boolean
+  canAdd: boolean
   updateCount: (roleId: string, count: number) => void
+  refreshRoles: () => void
   checkAccess: () => Promise<boolean>
 }) {
   const members = useRoleMembers(workspaceId, roleId, updateCount, checkAccess)
+  const [adding, setAdding] = useState(false)
+  const [addedNotice, setAddedNotice] = useState('')
   const { containerRef, sentinelRef } = useInfiniteScroll(members.loadMore, members.hasMore && !members.loading && !members.error && !members.removing)
 
   return (
     <div role="tabpanel" id="members-panel" aria-labelledby="members-tab">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{members.total} people have the {roleName} role</p>
-        <Button variant="outline" disabled title="Adding members is coming in a later ticket">
+      <div className="mb-4 grid min-w-0 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <p className="min-w-0 truncate text-sm text-muted-foreground" title={`${members.total} people have the ${roleName} role`}>{members.total} people have the {roleName} role</p>
+        <Button variant="outline" disabled={!canAdd || members.loading || members.removing !== null} onClick={() => setAdding(true)}>
           <Plus aria-hidden="true" /> Add members
         </Button>
       </div>
+      {adding && <AddRoleMembersDialog
+        workspaceId={workspaceId}
+        roleId={roleId}
+        roleName={roleName}
+        onClose={() => setAdding(false)}
+        onAdded={member => {
+          setAddedNotice(`${member.name} assigned to ${roleName}.`)
+          members.refresh()
+          refreshRoles()
+        }}
+        checkAccess={checkAccess}
+      />}
       <p className="mb-3 text-xs text-muted-foreground">Removing a member revokes their access to this workspace only.</p>
       {members.notice && <p role="status" className="mb-3 text-sm">{members.notice}</p>}
+      {addedNotice && <p role="status" className="mb-3 text-sm">{addedNotice}</p>}
       {members.actionError && <p role="alert" className="mb-3 text-sm text-destructive">{members.actionError}</p>}
       <div ref={containerRef} className="max-h-105 overflow-y-auto" aria-label="Role members">
         <ul className="divide-y border-y">
@@ -35,14 +54,17 @@ export function RoleMembers({
                 {member.name.slice(0, 2).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{member.name}</p>
-                <p className="truncate font-mono text-xs text-muted-foreground">{member.email}</p>
+                <p className="truncate text-sm font-medium" title={member.name}>{member.name}</p>
+                <p className="truncate font-mono text-xs text-muted-foreground" title={member.email}>{member.email}</p>
               </div>
               <Button
                 variant="ghost"
                 disabled={!canRemove || members.loading || members.removing !== null}
                 aria-label={`Remove ${member.name} from workspace`}
-                onClick={() => { void members.remove(member) }}
+                onClick={() => {
+                  setAddedNotice('')
+                  void members.remove(member)
+                }}
               >
                 {members.removing === member.user_id ? 'Removing...' : 'Remove'}
               </Button>

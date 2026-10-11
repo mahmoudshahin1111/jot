@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WorkspaceNavigationContext, useWorkspaceShell } from '@/hooks/use-workspace-shell'
 import logo from '@/assets/icons/jot-64x64.png'
@@ -75,9 +75,22 @@ function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
           </div>
         </aside>
         <div className="min-w-0 flex-1">
-          <div className="mx-auto max-w-7xl px-5 pt-8 sm:px-6">
-            <Breadcrumb items={breadcrumbs} onNavigate={shell.confirmNavigation} />
-          </div>
+          <header className="border-b">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-6">
+              <div className="min-w-0">
+                <Breadcrumb items={breadcrumbs} onNavigate={shell.confirmNavigation} />
+              </div>
+              <Button
+                variant="outline"
+                disabled={shell.loggingOut}
+                onClick={() => { void shell.logout() }}
+              >
+                <LogOut aria-hidden="true" />
+                {shell.loggingOut ? 'Logging out...' : 'Log out'}
+              </Button>
+            </div>
+            {shell.logoutError && <p role="alert" className="mx-auto max-w-7xl px-5 pb-4 text-sm text-destructive sm:px-6">{shell.logoutError}</p>}
+          </header>
           <Outlet />
         </div>
       </div>

@@ -88,7 +88,7 @@ system roles and permission mappings:
 | `workspace.viewer` | Yes | No | No |
 
 The owner role also receives `roles.read`, `roles.create`, `roles.update`,
-`roles.delete`, and `roles.members.remove`. Editors and viewers do not receive
+`roles.delete`, `roles.members.add`, and `roles.members.remove`. Editors and viewers do not receive
 role-management permissions by default. The role-management migration adds
 these definitions and owner mappings to existing databases, without requiring
 a reset or rerunning the seed.
@@ -107,6 +107,9 @@ explicit authenticated-only execute grants; direct table writes stay blocked.
 | `list_workspace_role_members` | `roles.read` | Returns only users assigned to the given role in this workspace, including display name and email. Uses a user UUID cursor. |
 | `remove_workspace_role_member` | `roles.members.remove` | Deletes the exact workspace/user/role membership. This revokes workspace access without deleting the account or affecting other workspaces. The last workspace owner cannot be removed. |
 | `duplicate_workspace_role` | `roles.create` | Clones saved permission mappings into a new workspace custom role with a unique copy name. Does not copy memberships. |
+| `create_workspace_role` | `roles.create` | Validates and trims a display name and creates a workspace custom role with a generated unique key, no permissions, and no members. Returns the new role for immediate editing. |
+| `list_workspace_role_candidates` | `roles.members.add` | Returns eligible existing workspace users not assigned to the selected role, with their current role, name and email. Supports name/email search and UUID cursor pagination. |
+| `assign_workspace_role_member` | `roles.members.add` | Replaces an existing user's workspace role. Checks the expected previous role, role scope, caller access, and last-owner protection atomically. Does not create memberships or accounts. |
 | `delete_workspace_role` | `roles.delete` | Deletes only empty custom roles in the current workspace. Remove their members first. |
 
 System roles are shared and cannot be edited or deleted through these RPCs.
@@ -120,7 +123,58 @@ with key `workspace.owner`, not simply having `roles.update` or a custom role
 named Owner. The access RPC returns `role_id` and `is_owner` for the UI guard;
 the save RPC independently verifies and locks the caller's membership.
 Owners can manage other users' custom roles; system roles remain immutable.
-Creation and assignment/add-member workflows are not implemented yet.
+Creating a role opens a name-entry modal; Enter or Create role saves it and
+selects its permissions editor. New roles have no permissions or memberships.
+Add members selects one existing workspace user at a time and replaces their
+previous role. Only owners can change their own role or manage owner assignments.
+The last owner cannot be reassigned. Candidates reflect these restrictions;
+the assignment RPC independently rechecks them. Assignment refreshes the selected
+role's member list/count and broadcasts the user's access change through Realtime.
+An empty-permission role grants no workspace access until permissions are added.
+Email invitations are managed separately on the Users page.
+
+### Workspace email invitations
+
+`workspace_invitations` records the workspace, scoped role, normalized email,
+sender, creation/expiry timestamps, delivery, acceptance, and cancellation.
+Client table reads and writes are blocked; authenticated RPCs and the trusted
+email Edge Function are the only supported interfaces.
+
+| Function | Access | Behavior |
+| --- | --- | --- |
+| `create_workspace_invitation` | `roles.members.add` | Reserves a pending invitation; validates role scope and email, rejects existing workspace members and duplicate pending emails. Only owners can invite owners. |
+| `list_my_workspace_invitations` | Authenticated sender | Lists only that sender's pending invitations across all workspaces, including those for workspaces they can no longer manage. |
+| `cancel_workspace_invitation` | Invitation sender | Cancels a pending invitation, even after the sender loses workspace access. Other senders cannot remove it. |
+| `get_workspace_invitation` | Confirmed invited email | Returns the workspace/role preview for a delivered, unexpired, uncanceled invitation. No anonymous invitation or account-directory lookup. |
+| `accept_workspace_invitation` | Confirmed invited email | Revalidates delivery, expiry, cancellation, sender permission, and role scope; creates the membership and marks acceptance atomically. Never overwrites an existing membership. |
+| `list_workspace_users` | `roles.read` | Lists members and their roles with name/email search and ten-row UUID pagination plus one lookahead row. |
+
+The global cap is **10 pending invitations per sender**, not per workspace.
+Creation, cancellation, and acceptance use the same sender advisory lock;
+concurrent invitation requests cannot exceed the cap across different workspaces.
+Creation also locks the workspace to prevent duplicate invitations from
+different senders. Pending means unaccepted, uncanceled, and unexpired; both
+delivery reservations and delivered invitations count. Invitations expire after
+seven days. Acceptance, cancellation, expiry, or deletion of the associated
+workspace/role frees the slot.
+
+The `invite-workspace-user` Edge Function validates the caller with Supabase Auth,
+calls the authorized reservation RPC, and sends email through Supabase Auth OTP
+with a server-configured application URL. It supports both existing and new
+accounts without exposing other workspaces' users. Only the trusted function can
+record successful delivery. On email failure it cancels the reservation and
+reports the failure; canceled links cannot grant access. The frontend never
+receives service-role credentials.
+
+Accepting does not require an existing workspace membership. A confirmed email
+must match the invitation; no email or user ID supplied by the accepting client
+is trusted. Other memberships remain unchanged, existing target-workspace roles
+are preserved, and the normal Realtime membership notification is emitted.
+Accepted invitations cannot be reused to restore removed membership.
+Invitation changes broadcast only an invitation ID to the sender's private
+`workspace-invitations:<user UUID>` topic. The sender's Users page reloads its
+authorized list on these notifications, automatically freeing the visible slot
+after acceptance. Realtime policies prevent other users subscribing to that topic.
 
 ### Realtime access notifications
 
@@ -152,7 +206,8 @@ reset deletes local data.
 Run the workspace access tests against local Supabase:
 
 ```powershell
-npx supabase test db
+$tests = Get-ChildItem supabase\tests\*.test.sql | ForEach-Object { $_.FullName }
+npx supabase test db $tests
 ```
 
 The tests run in rolled-back transactions and cover task permissions,

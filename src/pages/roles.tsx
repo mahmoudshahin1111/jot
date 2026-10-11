@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { Tooltip } from '@base-ui/react/tooltip'
@@ -5,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { RoleMembers } from '@/components/role-members'
+import { CreateRoleDialog } from '@/components/create-role-dialog'
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
 import { useWorkspaceRoles } from '@/hooks/use-workspace-roles'
 import { useRoleTabs } from '@/hooks/use-role-tabs'
@@ -68,6 +70,10 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
   const { tab, setTab, handleKeyDown } = useRoleTabs()
   const role = state.selectedRole
   const { canEdit } = state
+  const [creating, setCreating] = useState(false)
+  const visibleRoles = role && !state.searching && !state.roles.some(item => item.id === role.id)
+    ? [role, ...state.roles]
+    : state.roles
 
   return (
     <main className="mx-auto max-w-7xl px-5 pt-3 pb-24 sm:px-6">
@@ -78,14 +84,28 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
             Choose what each role can see and do. Changes apply to everyone assigned to the role.
           </p>
         </div>
-        <Button disabled title="Creating roles is coming in a later ticket">
+        <Button
+          disabled={state.busy || state.loading || Boolean(state.error) || !state.metadata?.capabilities.create}
+          onClick={() => setCreating(true)}
+        >
           <Plus aria-hidden="true" /> Create role
         </Button>
       </header>
+      <CreateRoleDialog
+        open={creating}
+        onOpenChange={setCreating}
+        busy={state.busy}
+        error={state.actionError}
+        onCreate={async name => {
+          const created = await state.create(name)
+          if (created) setTab('permissions')
+          return created
+        }}
+      />
       {state.notice && <p role="status" className="mb-4 text-sm">{state.notice}</p>}
-      {state.actionError && <p role="alert" className="mb-4 text-sm text-destructive">{state.actionError}</p>}
+      {state.actionError && !creating && <p role="alert" className="mb-4 text-sm text-destructive">{state.actionError}</p>}
       <div className="grid items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
-        <Card className="gap-5 rounded-lg border p-5 ring-0">
+        <Card className="min-w-0 gap-5 rounded-lg border p-5 ring-0">
           <div>
             <h2 className="text-xl font-semibold">Roles</h2>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -100,7 +120,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
           />
           <div ref={containerRef} className="max-h-95 overflow-y-auto" aria-label="Workspace roles">
             <ul className="space-y-1">
-              {state.roles.map(item => (
+              {visibleRoles.map(item => (
                 <li key={item.id}>
                   <Button
                     variant="ghost"
@@ -109,8 +129,8 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                     disabled={state.busy}
                     onClick={() => state.selectRole(item)}
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate text-xs font-semibold">{item.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-semibold" title={item.name}>{item.name}</span>
                       <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
                         {item.member_count} {item.member_count === 1 ? 'member' : 'members'}
                       </span>
@@ -135,18 +155,18 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
           </div>
         </Card>
         {role && state.metadata && !state.error ? (
-          <Card className="gap-6 rounded-lg border p-5 ring-0 sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+          <Card className="min-w-0 gap-6 rounded-lg border p-5 ring-0 sm:p-6">
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="break-all text-xl font-semibold">{role.name}</h2>
+                <div className="flex min-w-0 items-center gap-3">
+                  <h2 className="min-w-0 truncate text-xl font-semibold" title={role.name}>{role.name}</h2>
                   <RoleBadge system={role.is_system} />
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {role.is_system ? 'System role. Permissions are read-only; duplicate this role to customize it.' : 'Custom role for this workspace. Manage its permissions and members below.'}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" disabled={state.busy || !state.metadata.capabilities.create} onClick={state.duplicate}>
                   <Copy aria-hidden="true" /> Duplicate role
                 </Button>
@@ -179,9 +199,9 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
               ))}
             </div>
             {state.dirty && (
-              <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted p-3">
-                <p className="text-xs font-medium">You have unsaved changes to {role.name}.</p>
-                <div className="flex gap-2">
+              <div role="status" className="grid min-w-0 items-center gap-3 rounded-md border bg-muted p-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+                <p className="min-w-0 truncate text-xs font-medium" title={`You have unsaved changes to ${role.name}.`}>You have unsaved changes to {role.name}.</p>
+                <div className="flex flex-wrap gap-2">
                   <Button variant="outline" disabled={state.busy} onClick={state.discard}>Discard changes</Button>
                   <Button disabled={state.busy || !canEdit} onClick={state.save}>{state.busy ? 'Saving...' : 'Save changes'}</Button>
                 </div>
@@ -190,7 +210,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
             {tab === 'permissions' ? (
               <div role="tabpanel" id="permissions-panel" aria-labelledby="permissions-tab" className="overflow-x-auto">
                 <Tooltip.Provider>
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full table-fixed text-left text-sm">
                     <thead>
                       <tr className="border-b text-xs text-muted-foreground">
                         <th scope="col" className="pb-3 font-normal">Permission</th>
@@ -201,8 +221,8 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                       {state.metadata.permissions.map(permission => (
                         <tr key={permission.id}>
                           <th scope="row" className="py-3 pr-4 font-normal">
-                            <span className="block font-medium">{permission.name}</span>
-                            <span className="mt-1 block text-xs text-muted-foreground">{permission.description}</span>
+                            <span className="block truncate font-medium" title={permission.name}>{permission.name}</span>
+                            <span className="mt-1 block break-words text-xs text-muted-foreground">{permission.description}</span>
                           </th>
                           <td className="py-3 text-center">
                             <PermissionToggle
@@ -229,7 +249,9 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                 roleId={role.id}
                 roleName={role.name}
                 canRemove={state.metadata.capabilities.remove_members && !state.busy}
+                canAdd={state.metadata.capabilities.add_members && !state.busy}
                 updateCount={state.updateMemberCount}
+                refreshRoles={state.refreshRoles}
                 checkAccess={state.checkAccess}
               />
             )}

@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { WorkspaceNavigationContext } from '@/hooks/use-workspace-shell'
 import { PERMISSIONS } from '@/lib/permissions'
 import {
-  deleteRole, duplicateRole, getRoles, rolePageSize, saveRolePermissions,
+  createRole, deleteRole, duplicateRole, getRoles, rolePageSize, saveRolePermissions,
   type RolesPage, type WorkspaceRole,
 } from '@/lib/roles'
 
@@ -146,20 +146,39 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   async function runAction(action: () => Promise<void>) {
-    if (actionInFlight.current) return
+    if (actionInFlight.current) return false
     actionInFlight.current = true
     setBusy(true)
     setNotice('')
     setActionError(null)
     try {
       await action()
+      return true
     } catch (cause) {
       setActionError(roleErrorMessage(cause))
       try { await checkAccess() } catch (accessError) { setError(roleErrorMessage(accessError)) }
+      return false
     } finally {
       actionInFlight.current = false
       setBusy(false)
     }
+  }
+
+  async function create(name: string) {
+    if (!permissions.includes(PERMISSIONS.roles.create)) {
+      setActionError('You do not have permission to create roles.')
+      return false
+    }
+    if (dirty && !window.confirm('Discard unsaved permission changes and create a role?')) return false
+    return runAction(async () => {
+      const role = await createRole(workspaceId, name)
+      selectedRef.current = role
+      setSelectedRole(role)
+      setDraft(role.permission_ids)
+      setFilter('')
+      setRevision(value => value + 1)
+      setNotice('Role created. You can now manage its permissions and members.')
+    })
   }
 
   function save() {
@@ -215,12 +234,14 @@ export function useWorkspaceRoles(workspaceId: string) {
         create: permissions.includes(PERMISSIONS.roles.create),
         delete: permissions.includes(PERMISSIONS.roles.delete),
         remove_members: permissions.includes(PERMISSIONS.roles.removeMembers),
+        add_members: permissions.includes(PERMISSIONS.roles.addMembers),
       },
     }, selectedRole, draft, dirty, canEdit, permissionEditReason, filter, setFilter, loading, hasMore,
     error, actionError, busy, notice, loadMore, selectRole, togglePermission, discard, save, duplicate,
     searching: search !== '',
     confirmLeave: () => !dirty || window.confirm('Discard unsaved permission changes and leave this page?'),
-    removeRole, updateMemberCount, checkAccess,
+    create, removeRole, updateMemberCount, checkAccess,
+    refreshRoles: () => setRevision(value => value + 1),
     retry: () => setRevision(value => value + 1),
   }
 }

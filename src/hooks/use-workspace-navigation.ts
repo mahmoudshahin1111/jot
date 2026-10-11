@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom'
-import { Activity, LayoutDashboard, Shield } from 'lucide-react'
+import { Activity, LayoutDashboard, Shield, Users } from 'lucide-react'
 import type { BreadcrumbItem } from '@/components/breadcrumb'
 
 export function useWorkspaceNavigation(workspaceId: string) {
@@ -17,6 +17,7 @@ export function useWorkspaceNavigation(workspaceId: string) {
       label: 'Settings',
       items: [
         { to: `${basePath}/settings/roles`, label: 'Roles and permissions', icon: Shield },
+        { to: `${basePath}/settings/users`, label: 'Users', icon: Users },
       ],
     },
   ]

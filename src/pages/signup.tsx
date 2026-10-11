@@ -28,7 +28,9 @@ export function SignupPage() {
   async function onSubmit({ email, password }: SignupValues) {
     clearErrors('root')
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await supabase.auth.signUp({
+        email, password, options: { emailRedirectTo: `${window.location.origin}/workspaces` },
+      })
       if (error) {
         setError('root', { message: error.message })
         return

@@ -68,9 +68,9 @@ Restart Vite after changing environment variables.
 The frontend shows an email/password signup page using shadcn components,
 React Hook Form, and Zod. Password confirmation must match; the minimum password
 length is six characters, matching the current local Supabase configuration.
-Supabase errors are displayed in the form. If email confirmation is enabled,
-the page asks the user to check their inbox (Mailpit for local development).
-Otherwise it continues to the workspace check. Task management UI is not
+Supabase errors are displayed in the form. Email confirmation is enabled locally;
+the page asks the user to check their inbox at `http://127.0.0.1:54324` (Mailpit).
+Confirmation links return to the Vite app on port 5173. Task management UI is not
 implemented yet.
 
 The login page is available at `/login`, with signup at `/signup`. The root
@@ -88,7 +88,7 @@ instead of being treated as an empty workspace list.
 Opening `/workspaces/:workspaceId` redirects to its empty Dashboard page at
 `/workspaces/:workspaceId/dashboard`. The shared sidebar has an Overview group
 with Dashboard and Activity (`/workspaces/:workspaceId/activity`, also empty),
-and a Settings group with Roles and permissions. All workspaces remains
+and a Settings group with Roles and permissions and Users. All workspaces remains
 available at the bottom. A shared
 [Breadcrumb component](../src/components/breadcrumb.tsx) shows the current
 Workspace / group / page path on every workspace page. It accepts labeled items
@@ -99,6 +99,12 @@ Direct links verify the session and workspace access; missing access
 returns the user to the workspace picker. On narrow screens the navigation
 appears above the page. Leaving the roles page through the sidebar or breadcrumb prompts
 before discarding unsaved permission edits.
+The shared workspace header contains breadcrumbs and a Log out button on
+Dashboard, Activity, and Roles and permissions. Logging out honors the same
+unsaved-permission guard, disables the button while signing out, and redirects
+to `/login` on success. Sign-out failures appear in the header if a session remains.
+If Supabase clears the local session despite a server failure, the login page
+displays that failure instead.
 
 Roles and permissions is at `/workspaces/:workspaceId/settings/roles`. This page
 uses live Supabase data rather than mock roles. It requires `roles.read` and
@@ -124,7 +130,85 @@ the loaded page. Duplication copies saved permissions into a custom role
 without members. Member removal revokes that workspace membership and updates
 the visible list without reloading it. Other workspaces and the user's Jot
 session are preserved. Empty custom roles can be deleted; system roles cannot.
-Create role and Add members are disabled placeholders for later tickets.
+Create role opens an accessible name-entry modal for callers with `roles.create`.
+Enter or Create role saves the trimmed, non-empty name and selects the new
+custom role's permissions editor. New roles start without permissions or members.
+Apply the creation and assignment migrations alongside the frontend. Add members
+opens a searchable, paginated picker of existing workspace users for callers
+with `roles.members.add`. Adding a user replaces their previous workspace role.
+Only owners can reassign owners or themselves; the last owner cannot be moved.
+Email invitations are managed separately on the Users page.
+
+### Users and email invitations
+
+Open `/workspaces/:workspaceId/settings/users`. It uses the same two-card layout
+as Roles and permissions, with workspace users and a separate Invitations list.
+Viewing users requires `roles.read`; sending invitations requires `roles.members.add`.
+Only workspace owners can invite someone to the Owner role. Removing workspace
+users requires `roles.members.remove` and preserves the existing last-owner protection.
+
+Run the invitation Edge Function in a second terminal:
+
+```powershell
+npx supabase functions serve invite-workspace-user
+```
+
+Invite user accepts an email and a workspace role. Supabase sends a confirmation
+or magic-link email to either a new account or an existing account, including
+someone who already belongs to another workspace. The email opens
+`/invitations/accept?id=...`. Only the confirmed invited email can review and
+accept; signing in alone does not create a workspace membership.
+Acceptance preserves all other workspaces and never replaces an existing role.
+New email-link accounts can choose **Sign in with email link** on the login page
+for later visits; no password is assigned by the invitation flow. Password
+sign-in remains available for existing accounts.
+
+Each sender can have at most **10 pending invitations across all workspaces**.
+The server serializes concurrent requests to enforce this limit. The Invitations
+list shows that sender's pending invitations globally, including the workspace
+and role. Acceptance, removal, or expiry after seven days frees a slot. Removing
+an invitation invalidates its link; it does not delete the recipient's account.
+Failed email delivery cancels the reservation and reports an error.
+Private Realtime notifications automatically refresh the sender's list when an
+invitation is accepted, removed, or delivered. Use Refresh or refocus the page to
+check expirations or recover if live updates are unavailable.
+
+Local emails stay in Mailpit and are not sent to real inboxes. The local
+`APP_URL` default for the Edge Function is `http://localhost:5173`. To use another
+origin, set `APP_URL` in an uncommitted Edge Function environment file, pass it
+with `supabase functions serve --env-file`, and update the Auth site URL and
+allowed redirects accordingly. Hosted deployment also needs the migration,
+the deployed Edge Function, `APP_URL`, matching Auth redirect URLs, and a real
+SMTP provider. Service-role credentials are used only inside the Edge Function,
+never in the frontend.
+
+Invitation integration tests use Node's built-in runner against local Supabase:
+
+```powershell
+npm run test:invitations
+```
+
+The runnable Playwright browser flow uses isolated sender/recipient contexts and
+tests the exact 10-invitation limit, removal, email delivery, acceptance, and
+retention of another workspace. With an existing Playwright installation, point
+`PLAYWRIGHT_MODULE` to its `index.mjs` (omit this if `playwright` is importable):
+
+```powershell
+$env:PLAYWRIGHT_MODULE = 'C:\path\to\playwright\index.mjs'
+npm run test:invitations:browser
+```
+
+Start Vite and the Edge Function first. On Windows, the browser test uses installed
+Microsoft Edge; elsewhere, it uses Playwright Chromium. Test fixtures have unique
+emails and are removed afterward, including their specific Mailpit messages.
+The transactional SQL regression checks in
+[`workspace_role_management.sql`](../supabase/tests/workspace_role_management.sql)
+run against local Supabase without leaving fixture users, workspaces, or roles:
+
+```powershell
+Get-Content supabase\tests\workspace_role_management.sql -Raw | docker exec -i supabase_db_Jot psql -U postgres -d postgres -v ON_ERROR_STOP=1
+```
+
 The workspace shell subscribes to private Supabase Realtime broadcasts over
 WebSockets. Membership changes and changes to the user's assigned role permissions
 trigger an authorized access check, without periodic polling. Access is also
@@ -174,7 +258,8 @@ for generating components, while the CSS variables define the custom palette.
 ```powershell
 npm run build
 npm run lint
-npx supabase test db
+$tests = Get-ChildItem supabase\tests\*.test.sql | ForEach-Object { $_.FullName }
+npx supabase test db $tests
 ```
 
 Apply pending migrations to the local database before opening role management:
