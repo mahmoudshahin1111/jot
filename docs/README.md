@@ -95,6 +95,13 @@ Workspace / group / page path on every workspace page. It accepts labeled items
 with optional links and a navigation guard for reuse elsewhere. Sidebar groups
 and breadcrumb paths come from the
 [workspace navigation hook](../src/hooks/use-workspace-navigation.ts).
+Sidebar pages are filtered by the authenticated user's current workspace
+permissions. Roles and permissions and Users require `roles.read`; the Settings
+group is hidden when neither page is available. Dashboard and Activity remain
+available to any user with workspace access, since they have no separate page
+permissions. Sidebar visibility updates when the workspace access check receives
+role or permission changes. Hiding links does not replace direct-route, RPC,
+or database authorization.
 Direct links verify the session and workspace access; missing access
 returns the user to the workspace picker. On narrow screens the navigation
 appears above the page. Leaving the roles page through the sidebar or breadcrumb prompts

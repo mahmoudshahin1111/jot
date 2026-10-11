@@ -14,7 +14,7 @@ export function WorkspaceLayout() {
 
 function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
   const shell = useWorkspaceShell(workspaceId)
-  const { groups, breadcrumbs } = useWorkspaceNavigation(workspaceId)
+  const { groups, breadcrumbs } = useWorkspaceNavigation(workspaceId, shell.permissions)
 
   if (shell.error) {
     return (
