@@ -6,6 +6,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { RolesPage } from '@/pages/roles/page'
 import { WorkspaceLayout } from '@/components/workspace-layout'
 import { TasksPage } from '@/pages/tasks/page'
+import { ActivityPage } from '@/pages/activity/page'
 import { UsersPage } from '@/pages/users/page'
 import { AcceptInvitationPage } from '@/pages/accept-invitation/page'
   
@@ -25,7 +26,7 @@ function App() {
           <Route index element={<Navigate to="tasks" replace />} />
           <Route path="tasks" element={<TasksPage />} />
           <Route path="dashboard" element={<main aria-label="Dashboard" className="min-h-96" />} />
-          <Route path="activity" element={<main aria-label="Activity" className="min-h-96" />} />
+          <Route path="activity" element={<ActivityPage />} />
           <Route path="settings/roles" element={<RolesPage />} />
           <Route path="settings/users" element={<UsersPage />} />
         </Route>

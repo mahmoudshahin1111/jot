@@ -119,6 +119,14 @@ export async function saveRolePermissions(workspaceId: string, role: WorkspaceRo
   if (error) throw error
 }
 
+export async function getRole(workspaceId: string, roleId: string) {
+  const { data, error } = await supabase.rpc('get_workspace_role', {
+    target_workspace_id: workspaceId, target_role_id: roleId,
+  })
+  if (error) throw error
+  return data ? roleSchema.parse(data) : null
+}
+
 export async function duplicateRole(workspaceId: string, roleId: string) {
   const { data, error } = await supabase.rpc('duplicate_workspace_role_details', {
     target_workspace_id: workspaceId, target_role_id: roleId,

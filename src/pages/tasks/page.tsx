@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -29,6 +29,14 @@ function WorkspaceTasks({ workspaceId }: { workspaceId: string }) {
     (statusFilter === 'all' || task.status === statusFilter)
     && (!query || task.title.toLowerCase().includes(query) || task.description.toLowerCase().includes(query)),
   ) ?? []
+  const [searchParams] = useSearchParams()
+  const linkedTaskId = searchParams.get('task')
+  const linkedTask = state.tasks?.find(task => task.id === linkedTaskId) ?? null
+  const selectTask = state.select
+  useEffect(() => {
+    if (linkedTask) void selectTask(linkedTask)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedTask?.id])
   const doneCount = state.tasks?.filter(task => task.status === 'done').length ?? 0
 
   if (!hasPermission(PERMISSIONS.tasks.read)) {

@@ -10,7 +10,8 @@ values
   ('roles.update', 'Update role permissions', 'Update custom role permissions.'),
   ('roles.delete', 'Delete roles', 'Delete empty custom roles.'),
   ('roles.members.add', 'Assign workspace members', 'Assign existing workspace users to a role, replacing their current role.'),
-  ('roles.members.remove', 'Remove workspace members', 'Remove role members from the workspace.')
+  ('roles.members.remove', 'Remove workspace members', 'Remove role members from the workspace.'),
+  ('activity.read', 'View workspace activity', 'View the workspace activity history.')
 on conflict (key) do update
 set name = excluded.name, description = excluded.description;
 
@@ -29,6 +30,7 @@ where roles.is_system
     (roles.key = 'workspace.owner' and (
       permissions.key in ('tasks.read', 'tasks.create', 'tasks.update', 'tasks.delete')
       or permissions.key like 'roles.%'
+      or permissions.key = 'activity.read'
     ))
     or (roles.key = 'workspace.editor' and permissions.key in ('tasks.read', 'tasks.create', 'tasks.update'))
     or (roles.key = 'workspace.viewer' and permissions.key = 'tasks.read')

@@ -5,6 +5,9 @@ export const PERMISSIONS = {
     update: 'tasks.update',
     delete: 'tasks.delete',
   },
+  activity: {
+    read: 'activity.read',
+  },
   roles: {
     read: 'roles.read',
     create: 'roles.create',
