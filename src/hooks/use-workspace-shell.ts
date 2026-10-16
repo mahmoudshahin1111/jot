@@ -60,6 +60,9 @@ export function useWorkspaceShell(workspaceId: string) {
       navigate('/login', { replace: true })
     } else if (access.status === 'unavailable') {
       navigate('/workspaces', { replace: true })
+    } else if (access.status === 'ready' && !hasPermission(PERMISSIONS.activity.read)
+      && pathname === `/workspaces/${workspaceId}/activity`) {
+      navigate(`/workspaces/${workspaceId}/dashboard`, { replace: true })
     } else if (access.status === 'ready' && !hasPermission(PERMISSIONS.roles.read)
       && (pathname === `/workspaces/${workspaceId}/settings/roles`
         || pathname === `/workspaces/${workspaceId}/settings/users`)) {

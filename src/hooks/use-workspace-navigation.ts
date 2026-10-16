@@ -12,7 +12,7 @@ export function useWorkspaceNavigation(workspaceId: string, hasPermission: (perm
       items: [
         { to: `${basePath}/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
         { to: `${basePath}/tasks`, label: 'Tasks', icon: ListChecks, permission: PERMISSIONS.tasks.read },
-        { to: `${basePath}/activity`, label: 'Activity', icon: Activity },
+        { to: `${basePath}/activity`, label: 'Activity', icon: Activity, permission: PERMISSIONS.activity.read },
       ],
     },
     {
