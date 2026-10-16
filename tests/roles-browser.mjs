@@ -5,6 +5,125 @@ import { fixture, admin, unwrap } from './invitation-fixture.mjs'
 
 const membersMessage = "You can't delete a role assigned to members. Move all members to another role before deleting it."
 
+test('Roles actions follow independent permissions and update live', async () => {
+  const module = process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright'
+  const { chromium } = await import(module)
+  const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) })
+  const f = await fixture()
+  try {
+    const owner = await f.user('actions-owner')
+    const member = await f.user('actions-member')
+    const workspaceId = await f.workspace(owner)
+    const create = async name => unwrap(await owner.client.rpc('create_workspace_role', {
+      target_workspace_id: workspaceId, role_name: name,
+    }))
+    const assigned = await create('Action permissions')
+    const target = await create('Editable target')
+    const permissions = unwrap(await admin.from('permissions').select('id, key'))
+    const ids = keys => keys.map(key => {
+      const permission = permissions.find(item => item.key === key)
+      assert.ok(permission, `Permission ${key} exists`)
+      return permission.id
+    })
+    let previous = []
+    const grant = async keys => {
+      const next = ids(keys)
+      unwrap(await owner.client.rpc('save_workspace_role_permissions', {
+        target_workspace_id: workspaceId, target_role_id: assigned.id,
+        permission_ids: next, expected_permission_ids: previous,
+      }))
+      previous = next
+    }
+    await grant(['roles.read'])
+    unwrap(await admin.from('workspace_users').insert({ workspace_id: workspaceId, user_id: member.id, role_id: assigned.id }))
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    await page.goto('http://localhost:5173/login')
+    await page.getByLabel('Email', { exact: true }).fill(member.email)
+    await page.getByLabel('Password', { exact: true }).fill(member.password)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.waitForURL(url => url.pathname === '/workspaces')
+    await page.goto(`http://localhost:5173/workspaces/${workspaceId}/settings/roles`)
+    await page.getByLabel('Workspace roles', { exact: true }).getByRole('button', { name: /^Editable target/ }).click()
+    const createButton = page.getByRole('button', { name: 'Create role', exact: true })
+    const duplicateButton = page.getByRole('button', { name: 'Duplicate role', exact: true })
+    assert.equal(await createButton.count(), 0)
+    assert.equal(await duplicateButton.count(), 0)
+    assert.equal(await page.getByRole('checkbox').first().isDisabled(), true)
+    const duplicate = () => member.client.rpc('duplicate_workspace_role', { target_workspace_id: workspaceId, target_role_id: target.id })
+    assert.equal((await duplicate()).error?.code, '42501')
+
+    await grant(['roles.read', 'roles.create'])
+    await createButton.waitFor()
+    assert.equal(await duplicateButton.count(), 0, 'Create does not grant duplicate')
+    assert.equal((await duplicate()).error?.code, '42501')
+    unwrap(await member.client.rpc('create_workspace_role', { target_workspace_id: workspaceId, role_name: 'Created by member' }))
+
+    await grant(['roles.read', 'roles.duplicate'])
+    await duplicateButton.waitFor()
+    await createButton.waitFor({ state: 'detached' })
+    assert.equal((await member.client.rpc('create_workspace_role', { target_workspace_id: workspaceId, role_name: 'Forbidden' })).error?.code, '42501')
+    await duplicateButton.click()
+    await page.getByText('Role duplicated without members.', { exact: true }).waitFor()
+    assert.equal(unwrap(await admin.from('roles').select('id').eq('workspace_id', workspaceId).eq('name', 'Editable target (copy)')).length, 1)
+
+    await grant(['roles.read', 'roles.update'])
+    await duplicateButton.waitFor({ state: 'detached' })
+    await page.getByRole('checkbox').first().waitFor()
+    await page.waitForFunction(() => !document.querySelector('input[type="checkbox"]')?.disabled)
+    await page.getByRole('checkbox').first().click()
+    await page.getByRole('button', { name: 'Save changes', exact: true }).waitFor()
+    await grant(['roles.read'])
+    await page.getByRole('button', { name: 'Save changes', exact: true }).waitFor({ state: 'detached' })
+    assert.equal(await page.getByRole('checkbox').first().isDisabled(), true)
+
+    await grant(['tasks.read'])
+    await page.waitForURL(`**/workspaces/${workspaceId}/dashboard`)
+    assert.equal(await page.getByRole('navigation', { name: 'Workspace navigation' })
+      .getByRole('link', { name: 'Roles and permissions', exact: true }).count(), 0)
+    await context.close()
+  } finally {
+    await browser.close()
+    await f.cleanup()
+  }
+})
+
+test('Roles list loads the next page when its wrapper scrolls to the bottom', async () => {
+  const module = process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright'
+  const { chromium } = await import(module)
+  const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) })
+  const f = await fixture()
+  try {
+    const owner = await f.user('scroll-owner')
+    const workspaceId = await f.workspace(owner)
+    for (let index = 0; index < 15; index++) {
+      unwrap(await owner.client.rpc('create_workspace_role', {
+        target_workspace_id: workspaceId, role_name: `Scroll role ${index}`,
+      }))
+    }
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    await page.goto('http://localhost:5173/login')
+    await page.getByLabel('Email', { exact: true }).fill(owner.email)
+    await page.getByLabel('Password', { exact: true }).fill(owner.password)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.waitForURL(url => url.pathname === '/workspaces')
+    await page.goto(`http://localhost:5173/workspaces/${workspaceId}/settings/roles`)
+    const roles = page.getByLabel('Workspace roles', { exact: true })
+    const rows = roles.locator('li')
+    await rows.nth(9).waitFor()
+    assert.equal(await rows.count(), 10, 'Only the first page is initially loaded')
+    await roles.evaluate(element => { element.scrollTop = element.scrollHeight })
+    await rows.nth(17).waitFor()
+    assert.equal(await rows.count(), 18, 'Scrolling loads the remaining roles without clicking Load more')
+    assert.equal(await roles.getByRole('button', { name: 'Load more roles', exact: true }).count(), 0)
+    await context.close()
+  } finally {
+    await browser.close()
+    await f.cleanup()
+  }
+})
+
 test('Roles page deletes empty custom roles and explains why roles with members cannot be deleted', async () => {
   const module = process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright'
   const { chromium } = await import(module)

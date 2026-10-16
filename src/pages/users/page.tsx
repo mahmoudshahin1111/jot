@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { InviteUserDialog } from './components/invite-user-dialog'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useWorkspaceAccess } from '@/hooks/use-workspace-access'
-import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
+import { InfiniteScroll } from '@/components/infinite-scroll'
 import { cancelInvitation, getMyInvitations, getWorkspaceUsers, invitationLimit, type WorkspaceInvitation, type WorkspaceUser } from '@/lib/invitations'
 import { PERMISSIONS } from '@/lib/permissions'
 import { removeRoleMember, roleErrorMessage, rolePageSize } from '@/lib/roles'
@@ -132,7 +132,6 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
       if (current === generation.current) setLoading(false)
     }
   }, [workspaceId, search, members, loading, busy, error, hasMore])
-  const { containerRef, sentinelRef } = useInfiniteScroll(() => { void loadMore() }, section === 'users' && hasMore && !loading && !busy && !error)
 
   async function remove(id: string, member?: WorkspaceUser) {
     if (inFlight.current || !window.confirm(member
@@ -201,7 +200,13 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
           {section === 'users' && <Input aria-label="Filter users" placeholder="Filter users by name or email" value={filter} onChange={event => setFilter(event.target.value)} />}
           {loading && <p role="status" className="text-sm text-muted-foreground">Loading users and invitations...</p>}
           {error ? <div className="space-y-3"><p role="alert" className="text-sm text-destructive">{error}</p><Button variant="outline" onClick={() => setRevision(value => value + 1)}>Try again</Button></div> : (
-            <div ref={containerRef} className="max-h-105 overflow-y-auto" aria-label={section === 'users' ? 'Workspace users' : 'Pending invitations'}>
+            <InfiniteScroll
+              className="max-h-105 overflow-y-auto"
+              aria-label={section === 'users' ? 'Workspace users' : 'Pending invitations'}
+              enabled={section === 'users' && hasMore && !loading && !busy && !error}
+              onLoadMore={() => { void loadMore() }}
+              footer={section === 'users' && hasMore && <Button variant="ghost" className="w-full" disabled={loading || busy} onClick={() => { void loadMore() }}>Load more users</Button>}
+            >
               <ul className="divide-y border-y">
                 {section === 'users' ? members.map(member => (
                   <li key={member.user_id} className="flex items-center gap-3 py-4">
@@ -218,8 +223,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
                 ))}
               </ul>
               {!loading && (section === 'users' ? members.length === 0 : invitations.length === 0) && <p className="py-8 text-center text-sm text-muted-foreground">{section === 'users' ? 'No users found.' : 'No pending invitations.'}</p>}
-              {section === 'users' && <><div ref={sentinelRef} className="h-1" />{hasMore && <Button variant="ghost" className="w-full" disabled={loading || busy} onClick={() => { void loadMore() }}>Load more users</Button>}</>}
-            </div>
+            </InfiniteScroll>
           )}
         </Card>
       </div>

@@ -205,6 +205,11 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   function duplicate() {
+    if (!hasPermission(PERMISSIONS.roles.duplicate)) {
+      setActionError('You do not have permission to duplicate roles.')
+      setActionErrorCode(null)
+      return
+    }
     if (!selectedRole || (dirty && !window.confirm('Duplicate the saved role? Unsaved changes will be discarded.'))) return
     const role = selectedRole
     void runAction(async () => {
@@ -250,6 +255,7 @@ export function useWorkspaceRoles(workspaceId: string) {
       capabilities: {
         update: hasPermission(PERMISSIONS.roles.update),
         create: hasPermission(PERMISSIONS.roles.create),
+        duplicate: hasPermission(PERMISSIONS.roles.duplicate),
         delete: hasPermission(PERMISSIONS.roles.delete),
         remove_members: hasPermission(PERMISSIONS.roles.removeMembers),
         add_members: hasPermission(PERMISSIONS.roles.addMembers),

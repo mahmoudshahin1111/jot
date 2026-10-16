@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { AddRoleMembersDialog } from './add-role-members-dialog'
 import { Button } from '@/components/ui/button'
-import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
+import { InfiniteScroll } from '@/components/infinite-scroll'
 import { useRoleMembers } from '../hooks/use-role-members'
 
 export function RoleMembers({
@@ -20,7 +20,6 @@ export function RoleMembers({
   const members = useRoleMembers(workspaceId, roleId, updateCount, checkAccess)
   const [adding, setAdding] = useState(false)
   const [addedNotice, setAddedNotice] = useState('')
-  const { containerRef, sentinelRef } = useInfiniteScroll(members.loadMore, members.hasMore && !members.loading && !members.error && !members.removing)
 
   return (
     <div role="tabpanel" id="members-panel" aria-labelledby="members-tab">
@@ -46,7 +45,17 @@ export function RoleMembers({
       {members.notice && <p role="status" className="mb-3 text-sm">{members.notice}</p>}
       {addedNotice && <p role="status" className="mb-3 text-sm">{addedNotice}</p>}
       {members.actionError && <p role="alert" className="mb-3 text-sm text-destructive">{members.actionError}</p>}
-      <div ref={containerRef} className="max-h-105 overflow-y-auto" aria-label="Role members">
+      <InfiniteScroll
+        className="max-h-105 overflow-y-auto"
+        aria-label="Role members"
+        enabled={members.hasMore && !members.loading && !members.error && !members.removing}
+        onLoadMore={members.loadMore}
+        footer={members.hasMore && (
+          <Button variant="ghost" className="w-full" disabled={members.loading || members.removing !== null} onClick={members.loadMore}>
+            Load more members
+          </Button>
+        )}
+      >
         <ul className="divide-y border-y">
           {members.members.map(member => (
             <li key={member.user_id} className="flex items-center gap-3 py-4">
@@ -81,13 +90,7 @@ export function RoleMembers({
             <Button variant="outline" onClick={members.retry}>Try again</Button>
           </div>
         )}
-        <div ref={sentinelRef} className="h-1" />
-        {members.hasMore && (
-          <Button variant="ghost" className="w-full" disabled={members.loading || members.removing !== null} onClick={members.loadMore}>
-            Load more members
-          </Button>
-        )}
-      </div>
+      </InfiniteScroll>
     </div>
   )
 }

@@ -101,7 +101,7 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.duplicate_workspace_role(pg_temp.f('workspace'), pg_temp.f('custom'))$$,
-  '42501', 'You do not have permission to perform this role action', 'Create permission is required'
+  '42501', 'You do not have permission to perform this role action', 'Duplicate permission is required'
 );
 select throws_ok(
   $$select public.delete_workspace_role(pg_temp.f('workspace'), pg_temp.f('copy2'))$$,

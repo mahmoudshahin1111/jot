@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { RoleMembers } from './components/role-members'
 import { CreateRoleDialog } from './components/create-role-dialog'
-import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
+import { InfiniteScroll } from '@/components/infinite-scroll'
 import { useWorkspaceRoles } from './hooks/use-workspace-roles'
 import { useRoleTabs } from './hooks/use-role-tabs'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { PERMISSIONS } from '@/lib/permissions'
 
 const roleHasMembersMessage = "You can't delete a role assigned to members. Move all members to another role before deleting it."
 
@@ -78,7 +80,10 @@ export function RolesPage() {
 
 function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
   const state = useWorkspaceRoles(workspaceId)
-  const { containerRef, sentinelRef } = useInfiniteScroll(() => { void state.loadMore() }, state.hasMore && !state.loading && !state.error)
+  const { hasPermission } = useWorkspacePermissions()
+  const canCreate = hasPermission(PERMISSIONS.roles.create)
+  const canDuplicate = hasPermission(PERMISSIONS.roles.duplicate)
+  const canUpdate = hasPermission(PERMISSIONS.roles.update)
   const { tab, setTab, handleKeyDown } = useRoleTabs()
   const role = state.selectedRole
   const canEdit = role !== null && state.canEditRole(role)
@@ -105,14 +110,14 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
             Choose what each role can see and do. Changes apply to everyone assigned to the role.
           </p>
         </div>
-        <Button
-          disabled={state.busy || state.loading || Boolean(state.error) || !state.metadata?.capabilities.create}
+        {canCreate && <Button
+          disabled={state.busy || state.loading || Boolean(state.error)}
           onClick={() => setCreating(true)}
         >
           <Plus aria-hidden="true" /> Create role
-        </Button>
+        </Button>}
       </header>
-      <CreateRoleDialog
+      {canCreate && <CreateRoleDialog
         open={creating}
         onOpenChange={setCreating}
         busy={state.busy}
@@ -122,7 +127,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
           if (created) setTab('permissions')
           return created
         }}
-      />
+      />}
       {state.notice && <p role="status" className="mb-4 text-sm">{state.notice}</p>}
       {actionError && !creating && <p role="alert" className="mb-4 text-sm text-destructive">{actionError}</p>}
       <div className="grid items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
@@ -139,7 +144,13 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
             value={state.filter}
             onChange={event => state.setFilter(event.target.value)}
           />
-          <div ref={containerRef} className="max-h-95 overflow-y-auto" aria-label="Workspace roles">
+          <InfiniteScroll
+            className="max-h-95 overflow-y-auto"
+            aria-label="Workspace roles"
+            enabled={state.hasMore && !state.loading && !state.error}
+            onLoadMore={() => { void state.loadMore() }}
+            footer={state.hasMore && <Button variant="ghost" className="w-full" disabled={state.loading} onClick={() => { void state.loadMore() }}>Load more roles</Button>}
+          >
             <ul className="space-y-1">
               {visibleRoles.map(item => (
                 <li key={item.id}>
@@ -171,9 +182,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
             {!state.loading && !state.error && state.roles.length === 0 && (
               <p className="py-4 text-sm text-muted-foreground">No roles found.</p>
             )}
-            <div ref={sentinelRef} className="h-1" />
-            {state.hasMore && <Button variant="ghost" className="w-full" disabled={state.loading} onClick={() => { void state.loadMore() }}>Load more roles</Button>}
-          </div>
+          </InfiniteScroll>
         </Card>
         {role && state.metadata && !state.error ? (
           <Card className="min-w-0 gap-6 rounded-lg border p-5 ring-0 sm:p-6">
@@ -184,13 +193,15 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                   <RoleBadge system={role.is_system} />
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {role.is_system ? 'System role. Permissions are read-only; duplicate this role to customize it.' : 'Custom role for this workspace. Manage its permissions and members below.'}
+                  {role.is_system
+                    ? `System role. Permissions are read-only${canDuplicate ? '; duplicate this role to customize it.' : '.'}`
+                    : 'Custom role for this workspace. Manage its permissions and members below.'}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" disabled={state.busy || !state.metadata.capabilities.create} onClick={state.duplicate}>
+                {canDuplicate && <Button variant="outline" disabled={state.busy} onClick={state.duplicate}>
                   <Copy aria-hidden="true" /> Duplicate role
-                </Button>
+                </Button>}
                 <DisabledReasonTooltip reason={deleteBlockedReason} label={`Delete role unavailable. ${deleteBlockedReason}`}>
                   <Button
                     variant="destructive"
@@ -225,7 +236,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                 <p className="min-w-0 truncate text-xs font-medium" title={`You have unsaved changes to ${role.name}.`}>You have unsaved changes to {role.name}.</p>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" disabled={state.busy} onClick={state.discard}>Discard changes</Button>
-                  <Button disabled={state.busy || !canEdit} onClick={state.save}>{state.busy ? 'Saving...' : 'Save changes'}</Button>
+                  {canUpdate && <Button disabled={state.busy || !canEdit} onClick={state.save}>{state.busy ? 'Saving...' : 'Save changes'}</Button>}
                 </div>
               </div>
             )}

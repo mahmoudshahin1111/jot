@@ -118,12 +118,27 @@ uses live Supabase data rather than mock roles. It requires `roles.read` and
 shows one row per seeded permission, with read-only system roles and editable
 custom roles when the caller has `roles.update`. Unsaved edits show Save and
 Discard actions; saving persists the entire selection atomically.
+Create role requires `roles.create`, Duplicate role requires the independent
+`roles.duplicate` permission, and Save changes requires `roles.update`.
+Actions without their permission are hidden rather than disabled. Permission
+checkboxes remain read-only without update permission. The sidebar hides Roles
+and permissions without `roles.read`, and direct access redirects to Dashboard.
+Apply the separate-role-duplicate-permission migration before deploying this
+frontend. It preserves duplication access for roles previously granted
+`roles.create`; administrators can then grant or revoke the two independently.
 Non-owners cannot edit permissions on the role assigned to them, even with
 `roles.update`; disabled checkboxes explain this restriction in a hover/focus
 tooltip. Workspace owners may update other members' custom roles. System roles
 remain read-only for everyone. The save RPC enforces the self-role restriction.
 Roles and members load ten rows at a time with automatic infinite scrolling
-and a Load more fallback. Roles and permissions use `name` for human-readable
+and a Load more fallback. The shared
+[`InfiniteScroll` component](../src/components/infinite-scroll.tsx) wraps each
+scrollable list and calls `onLoadMore` when its bottom sentinel comes within
+100 pixels of the scroll container. Consumers control `enabled` using their
+pagination, loading, busy, and error states and handle the actual data fetching.
+Use `className` to constrain the scroll container and `footer` for a manual
+Load more fallback after the sentinel.
+Roles and permissions use `name` for human-readable
 display (Owner, Editor, Viewer, or a custom name) and `key` for machine-readable
 identifiers such as `workspace.owner` and `tasks.read`.
 Client-side permission checks use the shared

@@ -106,12 +106,15 @@ explicit authenticated-only execute grants; direct table writes stay blocked.
 | `save_workspace_role_permissions` | `roles.update` | Replaces a custom role's permission mappings atomically after locking the role. Validates permission IDs and compares `expected_permission_ids` to prevent overwriting stale edits. |
 | `list_workspace_role_members` | `roles.read` | Returns only users assigned to the given role in this workspace, including display name and email. Uses a user UUID cursor. |
 | `remove_workspace_role_member` | `roles.members.remove` | Deletes the exact workspace/user/role membership. This revokes workspace access without deleting the account or affecting other workspaces. The last workspace owner cannot be removed. |
-| `duplicate_workspace_role` | `roles.create` | Clones saved permission mappings into a new workspace custom role with a unique copy name. Does not copy memberships. |
+| `duplicate_workspace_role` | `roles.duplicate` | Clones saved permission mappings into a new workspace custom role with a unique copy name. Does not copy memberships. |
 | `create_workspace_role` | `roles.create` | Validates and trims a display name and creates a workspace custom role with a generated unique key, no permissions, and no members. Returns the new role for immediate editing. |
 | `list_workspace_role_candidates` | `roles.members.add` | Returns eligible existing workspace users not assigned to the selected role, with their current role, name and email. Supports name/email search and UUID cursor pagination. |
 | `assign_workspace_role_member` | `roles.members.add` | Replaces an existing user's workspace role. Checks the expected previous role, role scope, caller access, and last-owner protection atomically. Does not create memberships or accounts. |
 | `delete_workspace_role` | `roles.delete` | Deletes only empty custom roles in the current workspace. Remove their members first. |
 
+Role creation requires `roles.create`; duplication requires `roles.duplicate`.
+The duplication permission migration preserves existing duplication grants from
+`roles.create`, after which these permissions can be managed independently.
 System roles are shared and cannot be edited or deleted through these RPCs.
 To customize one, duplicate it into a workspace-specific role. Custom role
 changes apply to all users with that role. Role-management permissions are
