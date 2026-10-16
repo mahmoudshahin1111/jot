@@ -10,7 +10,9 @@ key of `(workspace_id, user_id)`.
 Each `public.tasks` row belongs to a workspace through its required
 `workspace_id`. It also has a generated UUID, a required non-empty title,
 a description defaulting to an empty string, and a creation timestamp.
-Tasks cannot be moved between workspaces.
+Tasks cannot be moved between workspaces. Each task also has a required
+`status` of `todo` (default), `in_progress` or `done`. The workspace Tasks page
+reads a workspace's tasks directly; RLS limits results to members with `tasks.read`.
 
 No root or default workspace is created by migrations or seeds. Signup
 onboarding requires a user to belong to at least one workspace before
