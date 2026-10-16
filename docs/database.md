@@ -27,13 +27,17 @@ All workspace tasks are accessible to each member according to their workspace
 role, rather than individual task sharing.
 
 RLS permits members to read their workspace and their own membership row.
-Task read, update, and delete policies check the member's role and permission
+Task read, create, update, and delete policies check the member's role and permission
 IDs. Deleting a task deletes it for every member of that workspace.
 Deleting a user removes their memberships, not workspace tasks. Deleting a
 workspace through a trusted administrative connection removes its tasks,
 memberships, and custom roles.
 
-Anonymous access and client task creation remain blocked. Workspace role
+Anonymous access remains blocked. Authenticated clients can insert tasks only
+with `tasks.create` in the target workspace. Task names must not be blank; the
+inline form trims names and uses the database defaults of an empty description
+and `todo` status. Owners and Editors receive `tasks.create` by default.
+Workspace role
 management uses the authorized RPCs described below; other direct workspace,
 membership, role, and permission writes remain blocked. Leaving individual
 tasks is no longer supported.
@@ -83,11 +87,11 @@ unexposed `private` schema to avoid recursive RLS on membership tables.
 The migration and configured [seed file](../supabase/seed.sql) install the following shared
 system roles and permission mappings:
 
-| Role | Read tasks | Update tasks | Delete tasks |
-| --- | --- | --- | --- |
-| `workspace.owner` | Yes | Yes | Yes |
-| `workspace.editor` | Yes | Yes | No |
-| `workspace.viewer` | Yes | No | No |
+| Role | Read tasks | Create tasks | Update tasks | Delete tasks |
+| --- | --- | --- | --- | --- |
+| `workspace.owner` | Yes | Yes | Yes | Yes |
+| `workspace.editor` | Yes | Yes | Yes | No |
+| `workspace.viewer` | Yes | No | No | No |
 
 The owner role also receives `roles.read`, `roles.create`, `roles.update`,
 `roles.delete`, `roles.members.add`, and `roles.members.remove`. Editors and viewers do not receive

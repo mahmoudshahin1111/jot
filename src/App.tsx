@@ -5,7 +5,7 @@ import { WorkspacesPage } from '@/pages/workspaces/page'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { RolesPage } from '@/pages/roles/page'
 import { WorkspaceLayout } from '@/components/workspace-layout'
-import { TasksPage } from '@/pages/tasks'
+import { TasksPage } from '@/pages/tasks/page'
 import { UsersPage } from '@/pages/users/page'
 import { AcceptInvitationPage } from '@/pages/accept-invitation/page'
   

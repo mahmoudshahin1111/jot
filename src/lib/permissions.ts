@@ -1,6 +1,7 @@
 export const PERMISSIONS = {
   tasks: {
     read: 'tasks.read',
+    create: 'tasks.create',
     update: 'tasks.update',
     delete: 'tasks.delete',
   },

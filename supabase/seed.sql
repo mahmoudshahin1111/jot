@@ -1,6 +1,7 @@
 insert into public.permissions (key, name, description)
 values
   ('tasks.read', 'View tasks', 'Read tasks.'),
+  ('tasks.create', 'Create tasks', 'Create tasks in the workspace.'),
   ('tasks.update', 'Update tasks', 'Update tasks.'),
   ('tasks.delete', 'Delete tasks', 'Delete tasks for all workspace members.'),
   ('roles.read', 'View roles and members', 'View workspace roles and their members.'),
@@ -26,10 +27,10 @@ from public.roles cross join public.permissions
 where roles.is_system
   and (
     (roles.key = 'workspace.owner' and (
-      permissions.key in ('tasks.read', 'tasks.update', 'tasks.delete')
+      permissions.key in ('tasks.read', 'tasks.create', 'tasks.update', 'tasks.delete')
       or permissions.key like 'roles.%'
     ))
-    or (roles.key = 'workspace.editor' and permissions.key in ('tasks.read', 'tasks.update'))
+    or (roles.key = 'workspace.editor' and permissions.key in ('tasks.read', 'tasks.create', 'tasks.update'))
     or (roles.key = 'workspace.viewer' and permissions.key = 'tasks.read')
   )
 on conflict (role_id, permission_id) do nothing;

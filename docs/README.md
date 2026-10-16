@@ -85,9 +85,9 @@ The creation page validates the name and calls `create_workspace`, creating
 the workspace and assigning the creator `workspace.owner` atomically.
 Both workspace pages require a session, and loading errors offer a retry
 instead of being treated as an empty workspace list.
-Opening `/workspaces/:workspaceId` redirects to its empty Dashboard page at
-`/workspaces/:workspaceId/dashboard`. The shared sidebar has an Overview group
-with Dashboard and Activity (`/workspaces/:workspaceId/activity`, also empty),
+Opening `/workspaces/:workspaceId` redirects to its Tasks page at
+`/workspaces/:workspaceId/tasks`. The shared sidebar has an Overview group
+with Tasks, Dashboard, and Activity (`/workspaces/:workspaceId/activity`, also empty),
 and a Settings group with Roles and permissions and Users. All workspaces remains
 available at the bottom. A shared
 [Breadcrumb component](../src/components/breadcrumb.tsx) shows the current
@@ -112,6 +112,65 @@ unsaved-permission guard, disables the button while signing out, and redirects
 to `/login` on success. Sign-out failures appear in the header if a session remains.
 If Supabase clears the local session despite a server failure, the login page
 displays that failure instead.
+
+### Tasks
+
+The [Tasks page](../src/pages/tasks/page.tsx) keeps its state hook and components
+in the same page folder. It requires `tasks.read` and always shows To do,
+In progress, and Done groups, including “No tasks in this group” for empty
+expanded groups. Groups can be collapsed independently.
+The toolbar provides All, To do, In progress, and Done filters with counts
+from the entire workspace task list. Selecting a status displays only that
+group. Search matches a case-insensitive substring of the title or description,
+ignores surrounding whitespace, and combines with the selected status.
+Empty search results display “No matching tasks in this group.”
+Filters update as tasks are created, edited, completed, or deleted. Filtering
+does not close the details panel or discard pending edits. Switch between List
+and Board without losing filters or the open task's draft. Board displays a
+column for each visible status with task cards, counts, and empty-state messages.
+Cards show titles and descriptions; Done titles are struck through.
+Click a card (or use Enter/Space) to open the same details editor used by List,
+including autosave, status changes, deletion, and Close. The details panel sits
+beside the board on large screens and stacks below on smaller screens; columns
+also stack on mobile.
+Users with `tasks.update` may drag a task row onto another visible status group,
+including an empty or collapsed group. The destination expands and the task
+moves immediately; the status saves after a 500 ms debounce. Rapid moves of
+the same task save only the latest status. Failed moves show an alert and
+restore the last saved group. Pending moves are flushed before switching tasks,
+completing, deleting, or leaving the page. Use All to expose all drop targets;
+the details status buttons remain the keyboard/touch alternative. Board columns
+use the same drag behavior, permissions, debounce, and failure rollback as List.
+
+Users with `tasks.create` can enter a task name above the table and click Add
+task or press Enter. Names are trimmed and must not be blank. New tasks are
+saved in the current workspace with To do status and an empty description,
+then appear immediately in the table. Creation errors keep the draft and show
+an alert. Users without create permission have no add form.
+The creation migration grants `tasks.create` to Owners and Editors and enforces
+the permission through an insert RLS policy; Viewers remain read-only.
+Apply `20261016180000_allow_workspace_task_creation.sql` before deploying.
+
+Task checkboxes require `tasks.update`: checking moves the task to Done, and
+unchecking returns it to To do. Click a task row or its keyboard-accessible
+title to open Task details beside the table (stacked below on smaller screens).
+The panel allows title, description, and status editing with a 500 ms autosave
+debounce. Writes are serialized so edits made during a save are not overwritten.
+Close or selecting another task waits for pending changes to save; failed or
+invalid saves retain the draft and keep the panel open with an error and retry.
+Leaving through workspace navigation is blocked while changes are pending, and
+browser reload/close warns about unsaved changes. The new status group expands
+when status is changed.
+
+Delete task requires `tasks.delete`, asks for confirmation, removes the task
+from the database and list, and closes the panel. Viewers may open details but
+cannot edit, complete, or delete tasks. Update and delete use the existing
+workspace-scoped RLS policies and report denied or missing rows as errors.
+
+Run `npm run test:tasks:browser` with the same local Supabase, Vite, and
+Playwright setup described below. It covers empty groups, button and Enter
+creation, persistence, validation, completion, debounced editing, slow/failed
+saves, switching and closing details, deletion, and workspace permissions.
 
 Roles and permissions is at `/workspaces/:workspaceId/settings/roles`. This page
 uses live Supabase data rather than mock roles. It requires `roles.read` and
