@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getRoles, rolePageSize, type WorkspaceRole } from '@/lib/roles'
 import { inviteEmailSchema, inviteWorkspaceUser } from '@/lib/invitations'
-import { roleErrorMessage } from '@/hooks/use-workspace-roles'
+import { roleErrorMessage } from '@/lib/roles'
 
 export function InviteUserDialog({ workspaceId, isOwner, onClose, onSent }: {
   workspaceId: string

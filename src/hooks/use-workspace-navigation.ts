@@ -3,7 +3,7 @@ import { Activity, LayoutDashboard, Shield, Users, type LucideIcon } from 'lucid
 import type { BreadcrumbItem } from '@/components/breadcrumb'
 import { PERMISSIONS, type PermissionKey } from '@/lib/permissions'
 
-export function useWorkspaceNavigation(workspaceId: string, permissions: readonly string[]) {
+export function useWorkspaceNavigation(workspaceId: string, hasPermission: (permission: PermissionKey) => boolean) {
   const { pathname } = useLocation()
   const basePath = `/workspaces/${workspaceId}`
   const navigation: { label: string; items: { to: string; label: string; icon: LucideIcon; permission?: PermissionKey }[] }[] = [
@@ -24,7 +24,7 @@ export function useWorkspaceNavigation(workspaceId: string, permissions: readonl
   ]
   const groups = navigation.map(group => ({
     ...group,
-    items: group.items.filter(item => !item.permission || permissions.includes(item.permission)),
+    items: group.items.filter(item => !item.permission || hasPermission(item.permission)),
   })).filter(group => group.items.length > 0)
   const currentGroup = groups.find(group => group.items.some(item => item.to === pathname))
   const currentPage = currentGroup?.items.find(item => item.to === pathname)

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { supabase } from '@/lib/supabaseClient'
 import { acceptInvitation, getInvitation, inviteEmailSchema } from '@/lib/invitations'
-import { roleErrorMessage } from '@/hooks/use-workspace-roles'
+import { roleErrorMessage } from '@/lib/roles'
 
 export function AcceptInvitationPage() {
   const [params] = useSearchParams()

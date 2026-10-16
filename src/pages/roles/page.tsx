@@ -1,21 +1,51 @@
-import { useState } from 'react'
+import { useState, type ReactElement } from 'react'
 import { useParams } from 'react-router-dom'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { Tooltip } from '@base-ui/react/tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { RoleMembers } from '@/components/role-members'
-import { CreateRoleDialog } from '@/components/create-role-dialog'
+import { RoleMembers } from './components/role-members'
+import { CreateRoleDialog } from './components/create-role-dialog'
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
-import { useWorkspaceRoles } from '@/hooks/use-workspace-roles'
-import { useRoleTabs } from '@/hooks/use-role-tabs'
+import { useWorkspaceRoles } from './hooks/use-workspace-roles'
+import { useRoleTabs } from './hooks/use-role-tabs'
+
+const roleHasMembersMessage = "You can't delete a role assigned to members. Move all members to another role before deleting it."
 
 function RoleBadge({ system }: { system: boolean }) {
   return (
     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${system ? 'border border-input' : 'bg-muted'}`}>
       {system ? 'System' : 'Custom'}
     </span>
+  )
+}
+
+// Disabled controls do not receive pointer events, so the wrapper is the hover/focus target.
+function DisabledReasonTooltip({ reason, label, children }: {
+  reason: string | null
+  label: string
+  children: ReactElement
+}) {
+  if (!reason) return children
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        render={<span />}
+        tabIndex={0}
+        aria-label={label}
+        className="inline-flex rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+      >
+        {children}
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Positioner sideOffset={6}>
+          <Tooltip.Popup role="tooltip" className="z-50 max-w-64 rounded-md bg-foreground px-3 py-2 text-xs text-background shadow-md">
+            {reason}
+          </Tooltip.Popup>
+        </Tooltip.Positioner>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   )
 }
 
@@ -26,35 +56,17 @@ function PermissionToggle({ name, checked, disabled, reason, onChange }: {
   reason: string | null
   onChange: () => void
 }) {
-  const checkbox = (
-    <input
-      type="checkbox"
-      className={`size-4 cursor-pointer accent-primary disabled:cursor-not-allowed ${reason ? 'pointer-events-none' : ''}`}
-      checked={checked}
-      disabled={disabled}
-      aria-label={`Allow ${name}`}
-      onChange={onChange}
-    />
-  )
-  if (!reason) return checkbox
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger
-        render={<span />}
-        tabIndex={0}
-        aria-label={`Allow ${name}: editing unavailable`}
-        className="inline-flex rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
-      >
-        {checkbox}
-      </Tooltip.Trigger>
-      <Tooltip.Portal>
-        <Tooltip.Positioner sideOffset={6}>
-          <Tooltip.Popup role="tooltip" className="z-50 max-w-64 rounded-md bg-foreground px-3 py-2 text-xs text-background shadow-md">
-            {reason}
-          </Tooltip.Popup>
-        </Tooltip.Positioner>
-      </Tooltip.Portal>
-    </Tooltip.Root>
+    <DisabledReasonTooltip reason={reason} label={`Allow ${name}: editing unavailable`}>
+      <input
+        type="checkbox"
+        className={`size-4 cursor-pointer accent-primary disabled:cursor-not-allowed ${reason ? 'pointer-events-none' : ''}`}
+        checked={checked}
+        disabled={disabled}
+        aria-label={`Allow ${name}`}
+        onChange={onChange}
+      />
+    </DisabledReasonTooltip>
   )
 }
 
@@ -69,7 +81,16 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
   const { containerRef, sentinelRef } = useInfiniteScroll(() => { void state.loadMore() }, state.hasMore && !state.loading && !state.error)
   const { tab, setTab, handleKeyDown } = useRoleTabs()
   const role = state.selectedRole
-  const { canEdit } = state
+  const canEdit = role !== null && state.canEditRole(role)
+  const permissionEditReason = state.selfRoleEditBlocked
+    ? 'You cannot update a role assigned to you. Only the workspace owner can do this.'
+    : null
+  const deleteBlockedReason = !role ? null
+    : role.is_system ? 'System roles cannot be deleted.'
+    : !state.metadata?.capabilities.delete ? 'You need roles.delete permission to delete roles.'
+    : role.member_count > 0 ? roleHasMembersMessage
+    : null
+  const actionError = state.actionErrorCode === '23514' ? roleHasMembersMessage : state.actionError
   const [creating, setCreating] = useState(false)
   const visibleRoles = role && !state.searching && !state.roles.some(item => item.id === role.id)
     ? [role, ...state.roles]
@@ -95,7 +116,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
         open={creating}
         onOpenChange={setCreating}
         busy={state.busy}
-        error={state.actionError}
+        error={actionError}
         onCreate={async name => {
           const created = await state.create(name)
           if (created) setTab('permissions')
@@ -103,7 +124,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
         }}
       />
       {state.notice && <p role="status" className="mb-4 text-sm">{state.notice}</p>}
-      {state.actionError && !creating && <p role="alert" className="mb-4 text-sm text-destructive">{state.actionError}</p>}
+      {actionError && !creating && <p role="alert" className="mb-4 text-sm text-destructive">{actionError}</p>}
       <div className="grid items-start gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
         <Card className="min-w-0 gap-5 rounded-lg border p-5 ring-0">
           <div>
@@ -170,14 +191,15 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                 <Button variant="outline" disabled={state.busy || !state.metadata.capabilities.create} onClick={state.duplicate}>
                   <Copy aria-hidden="true" /> Duplicate role
                 </Button>
-                <Button
-                  variant="destructive"
-                  disabled={state.busy || role.is_system || !state.metadata.capabilities.delete || role.member_count > 0}
-                  title={role.is_system ? 'System roles cannot be deleted' : role.member_count > 0 ? 'Remove all members before deleting this role' : 'Delete role'}
-                  onClick={state.removeRole}
-                >
-                  <Trash2 aria-hidden="true" /> Delete role
-                </Button>
+                <DisabledReasonTooltip reason={deleteBlockedReason} label={`Delete role unavailable. ${deleteBlockedReason}`}>
+                  <Button
+                    variant="destructive"
+                    disabled={state.busy || !state.canDeleteRole(role)}
+                    onClick={state.removeRole}
+                  >
+                    <Trash2 aria-hidden="true" /> Delete role
+                  </Button>
+                </DisabledReasonTooltip>
               </div>
             </div>
             <div className="flex w-fit gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Role details">
@@ -229,7 +251,7 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                               name={permission.name}
                               checked={state.draft.includes(permission.id)}
                               disabled={!canEdit || state.busy}
-                              reason={state.permissionEditReason}
+                              reason={permissionEditReason}
                               onChange={() => state.togglePermission(permission.id)}
                             />
                           </td>
@@ -238,8 +260,8 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
                     </tbody>
                   </table>
                 </Tooltip.Provider>
-                {state.permissionEditReason
-                  ? <p className="mt-3 text-xs text-muted-foreground">{state.permissionEditReason}</p>
+                {permissionEditReason
+                  ? <p className="mt-3 text-xs text-muted-foreground">{permissionEditReason}</p>
                   : !role.is_system && !canEdit && <p className="mt-3 text-xs text-muted-foreground">You need roles.update permission to edit this role.</p>}
               </div>
             ) : (

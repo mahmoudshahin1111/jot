@@ -5,6 +5,7 @@ import { WorkspaceNavigationContext, useWorkspaceShell } from '@/hooks/use-works
 import logo from '@/assets/icons/jot-64x64.png'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { useWorkspaceNavigation } from '@/hooks/use-workspace-navigation'
+import { WorkspaceAccessContext } from '@/hooks/use-workspace-access'
 
 export function WorkspaceLayout() {
   const { workspaceId } = useParams()
@@ -14,7 +15,7 @@ export function WorkspaceLayout() {
 
 function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
   const shell = useWorkspaceShell(workspaceId)
-  const { groups, breadcrumbs } = useWorkspaceNavigation(workspaceId, shell.permissions)
+  const { groups, breadcrumbs } = useWorkspaceNavigation(workspaceId, shell.hasPermission)
 
   if (shell.error) {
     return (
@@ -30,10 +31,8 @@ function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <WorkspaceNavigationContext.Provider value={{
-      registerGuard: shell.registerGuard, checkAccess: shell.checkAccess, permissions: shell.permissions,
-      roleId: shell.roleId, isOwner: shell.isOwner,
-    }}>
+    <WorkspaceAccessContext.Provider value={{ workspace: shell.workspace, checkAccess: shell.checkAccess }}>
+    <WorkspaceNavigationContext.Provider value={{ registerGuard: shell.registerGuard }}>
       <div className="min-h-svh md:flex">
         <aside className="flex flex-col border-b bg-card px-3 py-5 md:sticky md:top-0 md:h-svh md:w-52 md:shrink-0 md:border-r md:border-b-0">
           <div className="mb-8 flex items-center gap-2 px-2">
@@ -95,5 +94,6 @@ function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
         </div>
       </div>
     </WorkspaceNavigationContext.Provider>
+    </WorkspaceAccessContext.Provider>
   )
 }

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { AddRoleMembersDialog } from '@/components/add-role-members-dialog'
+import { AddRoleMembersDialog } from './add-role-members-dialog'
 import { Button } from '@/components/ui/button'
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
-import { useRoleMembers } from '@/hooks/use-role-members'
+import { useRoleMembers } from '../hooks/use-role-members'
 
 export function RoleMembers({
   workspaceId, roleId, roleName, canRemove, canAdd, updateCount, refreshRoles, checkAccess,

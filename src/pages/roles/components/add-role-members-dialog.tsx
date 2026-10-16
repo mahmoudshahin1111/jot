@@ -3,7 +3,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { addRoleMember, getRoleMemberCandidates, rolePageSize, type RoleMemberCandidate } from '@/lib/roles'
-import { roleErrorMessage } from '@/hooks/use-workspace-roles'
+import { roleErrorMessage } from '@/lib/roles'
 
 export function AddRoleMembersDialog({ workspaceId, roleId, roleName, onClose, onAdded, checkAccess }: {
   workspaceId: string

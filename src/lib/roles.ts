@@ -1,6 +1,14 @@
 import { z } from 'zod'
 import { supabase } from '@/lib/supabaseClient'
 
+export function roleErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return 'Unable to complete the role action. Please try again.'
+}
+
 export const roleSchema = z.object({
   id: z.string().uuid(),
   key: z.string().trim().min(1),

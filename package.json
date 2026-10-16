@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "test:invitations": "node --test tests/invitation-*.test.mjs",
     "test:invitations:browser": "node --test tests/invitation-browser.mjs",
+    "test:roles:browser": "node --test tests/roles-browser.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

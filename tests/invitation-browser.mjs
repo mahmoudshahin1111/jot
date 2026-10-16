@@ -71,6 +71,20 @@ test('sidebar hides unauthorized pages and empty groups, and responds to permiss
     await page.goto(`http://localhost:5173/workspaces/${workspaceId}/settings/users`)
     await page.waitForURL(`**/workspaces/${workspaceId}/dashboard`)
     assert.deepEqual(unwrap(await admin.from('role_permissions').select('permission_id').eq('role_id', role.id)).map(row => row.permission_id), [taskRead])
+    const replacement = unwrap(await owner.client.rpc('create_workspace_role', {
+      target_workspace_id: workspaceId, role_name: 'Replacement navigation role',
+    }))
+    unwrap(await owner.client.rpc('save_workspace_role_permissions', {
+      target_workspace_id: workspaceId, target_role_id: replacement.id,
+      permission_ids: [taskRead, roleRead], expected_permission_ids: [],
+    }))
+    unwrap(await admin.from('workspace_users').update({ role_id: replacement.id })
+      .eq('workspace_id', workspaceId).eq('user_id', member.id))
+    await sidebar.getByRole('link', { name: 'Roles and permissions', exact: true }).waitFor()
+    await sidebar.getByRole('link', { name: 'Users', exact: true }).click()
+    await page.getByRole('heading', { name: 'Users', level: 1, exact: true }).waitFor()
+    unwrap(await admin.from('workspace_users').delete().eq('workspace_id', workspaceId).eq('user_id', member.id))
+    await page.waitForURL(url => url.pathname === '/workspaces')
     await context.close()
   } finally {
     await browser.close()

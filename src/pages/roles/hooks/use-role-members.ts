@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getRoleMembers, removeRoleMember, rolePageSize, type RoleMember } from '@/lib/roles'
-import { roleErrorMessage } from '@/hooks/use-workspace-roles'
+import { getRoleMembers, removeRoleMember, roleErrorMessage, rolePageSize, type RoleMember } from '@/lib/roles'
 
 export function useRoleMembers(
   workspaceId: string,

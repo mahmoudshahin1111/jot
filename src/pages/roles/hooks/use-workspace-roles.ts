@@ -1,23 +1,24 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { WorkspaceNavigationContext } from '@/hooks/use-workspace-shell'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { useWorkspaceAccess } from '@/hooks/use-workspace-access'
 import { PERMISSIONS } from '@/lib/permissions'
 import {
-  createRole, deleteRole, duplicateRole, getRoles, rolePageSize, saveRolePermissions,
+  createRole, deleteRole, duplicateRole, getRoleMembers, getRoles, roleErrorMessage, rolePageSize, saveRolePermissions,
   type RolesPage, type WorkspaceRole,
 } from '@/lib/roles'
 
-export function roleErrorMessage(error: unknown) {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
-    return error.message
-  }
-  return 'Unable to complete the role action. Please try again.'
+function errorCode(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : null
 }
 
 export function useWorkspaceRoles(workspaceId: string) {
   const navigation = useContext(WorkspaceNavigationContext)
+  const { hasPermission } = useWorkspacePermissions()
+  const { workspace, checkAccess } = useWorkspaceAccess()
   if (!navigation) throw new Error('Workspace roles require a workspace shell.')
-  const { checkAccess, permissions, roleId, isOwner } = navigation
   const [roles, setRoles] = useState<WorkspaceRole[]>([])
   const [metadata, setMetadata] = useState<Omit<RolesPage, 'roles'> | null>(null)
   const [selectedRole, setSelectedRole] = useState<WorkspaceRole | null>(null)
@@ -30,6 +31,7 @@ export function useWorkspaceRoles(workspaceId: string) {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionErrorCode, setActionErrorCode] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
   const generation = useRef(0)
   const fetching = useRef(false)
@@ -40,12 +42,15 @@ export function useWorkspaceRoles(workspaceId: string) {
     draft.length !== selectedRole.permission_ids.length
     || draft.some(id => !selectedRole.permission_ids.includes(id))
   )
-  const selfRoleEditBlocked = selectedRole !== null && selectedRole.id === roleId && !isOwner
-  const permissionEditReason = selfRoleEditBlocked
-    ? 'You cannot update a role assigned to you. Only the workspace owner can do this.'
-    : null
-  const canEdit = Boolean(selectedRole && !selectedRole.is_system
-    && permissions.includes(PERMISSIONS.roles.update) && !selfRoleEditBlocked)
+  const selfRoleEditBlocked = selectedRole !== null && selectedRole.id === workspace?.role_id && !workspace.is_owner
+  function canEditRole(role: WorkspaceRole) {
+    return !role.is_system && hasPermission(PERMISSIONS.roles.update)
+      && (role.id !== workspace?.role_id || workspace.is_owner)
+  }
+
+  function canDeleteRole(role: WorkspaceRole) {
+    return !role.is_system && hasPermission(PERMISSIONS.roles.delete) && role.member_count === 0
+  }
 
   useEffect(() => {
     if (!navigation) return
@@ -130,10 +135,11 @@ export function useWorkspaceRoles(workspaceId: string) {
     setDraft(role.permission_ids)
     setNotice('')
     setActionError(null)
+    setActionErrorCode(null)
   }
 
   function togglePermission(id: string) {
-    if (busy || !canEdit) return
+    if (busy || !selectedRole || !canEditRole(selectedRole)) return
     setDraft(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id])
     setNotice('')
   }
@@ -143,6 +149,7 @@ export function useWorkspaceRoles(workspaceId: string) {
     setDraft(selectedRole?.permission_ids ?? [])
     setNotice('Changes discarded.')
     setActionError(null)
+    setActionErrorCode(null)
   }
 
   async function runAction(action: () => Promise<void>) {
@@ -151,11 +158,13 @@ export function useWorkspaceRoles(workspaceId: string) {
     setBusy(true)
     setNotice('')
     setActionError(null)
+    setActionErrorCode(null)
     try {
       await action()
       return true
     } catch (cause) {
       setActionError(roleErrorMessage(cause))
+      setActionErrorCode(errorCode(cause))
       try { await checkAccess() } catch (accessError) { setError(roleErrorMessage(accessError)) }
       return false
     } finally {
@@ -165,8 +174,9 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   async function create(name: string) {
-    if (!permissions.includes(PERMISSIONS.roles.create)) {
+    if (!hasPermission(PERMISSIONS.roles.create)) {
       setActionError('You do not have permission to create roles.')
+      setActionErrorCode(null)
       return false
     }
     if (dirty && !window.confirm('Discard unsaved permission changes and create a role?')) return false
@@ -182,7 +192,7 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   function save() {
-    if (!selectedRole || !dirty || !canEdit) return
+    if (!selectedRole || !dirty || !canEditRole(selectedRole)) return
     const role = selectedRole
     void runAction(async () => {
       await saveRolePermissions(workspaceId, role, draft)
@@ -208,11 +218,19 @@ export function useWorkspaceRoles(workspaceId: string) {
   }
 
   function removeRole() {
-    if (!selectedRole || selectedRole.is_system
-      || !window.confirm(`Delete ${selectedRole.name}? This cannot be undone.`)) return
+    if (busy || !selectedRole || !canDeleteRole(selectedRole)) return
+    if (!window.confirm(`Delete ${selectedRole.name}? This cannot be undone.`)) return
     const role = selectedRole
     void runAction(async () => {
-      await deleteRole(workspaceId, role.id)
+      try {
+        await deleteRole(workspaceId, role.id)
+      } catch (cause) {
+        if (errorCode(cause) !== '23514') throw cause
+        // The visible member count was stale; refresh it so the button locks.
+        const { total } = await getRoleMembers(workspaceId, role.id)
+        updateMemberCount(role.id, total)
+        throw cause
+      }
       setSelectedRole(null)
       selectedRef.current = null
       setDraft([])
@@ -230,14 +248,14 @@ export function useWorkspaceRoles(workspaceId: string) {
     roles, metadata: metadata && {
       ...metadata,
       capabilities: {
-        update: permissions.includes(PERMISSIONS.roles.update),
-        create: permissions.includes(PERMISSIONS.roles.create),
-        delete: permissions.includes(PERMISSIONS.roles.delete),
-        remove_members: permissions.includes(PERMISSIONS.roles.removeMembers),
-        add_members: permissions.includes(PERMISSIONS.roles.addMembers),
+        update: hasPermission(PERMISSIONS.roles.update),
+        create: hasPermission(PERMISSIONS.roles.create),
+        delete: hasPermission(PERMISSIONS.roles.delete),
+        remove_members: hasPermission(PERMISSIONS.roles.removeMembers),
+        add_members: hasPermission(PERMISSIONS.roles.addMembers),
       },
-    }, selectedRole, draft, dirty, canEdit, permissionEditReason, filter, setFilter, loading, hasMore,
-    error, actionError, busy, notice, loadMore, selectRole, togglePermission, discard, save, duplicate,
+    }, selectedRole, draft, dirty, canEditRole, canDeleteRole, selfRoleEditBlocked, filter, setFilter, loading, hasMore,
+    error, actionError, actionErrorCode, busy, notice, loadMore, selectRole, togglePermission, discard, save, duplicate,
     searching: search !== '',
     confirmLeave: () => !dirty || window.confirm('Discard unsaved permission changes and leave this page?'),
     create, removeRole, updateMemberCount, checkAccess,

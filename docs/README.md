@@ -1,7 +1,7 @@
 # Local development
 
 Shared development guidance belongs in
-[Development principles](./DEVELOPMENT_PRINCIPLES.md), the single source of
+[Development principles](./development_principles.md), the single source of
 truth for principles used across the project.
 
 ## Prerequisites
@@ -132,11 +132,28 @@ Client-side permission checks use the shared
 seeded task and role permissions and exports a `PermissionKey` literal-union
 type. Keep this list aligned with permission definitions in the database seed;
 display names and assigned permissions still come from Supabase.
+The shared [`useWorkspacePermissions` hook](../src/hooks/use-workspace-permissions.ts)
+exposes only `hasPermission(permission)`, which returns a boolean. Roles group
+permissions; consumers check the permission needed for an action, not role names.
+Pages and role actions retain contextual constraints such as system roles,
+assigned members, and the own-role editing restriction.
+The separate [`workspace access hook`](../src/hooks/use-workspace-access.ts)
+initializes access for the signed-in user when a workspace opens
+and owns the single workspace-access realtime subscription, auth events, focus
+refreshes, retries, and cleanup. Permissions are workspace-scoped, so they are
+loaded after login once the workspace is known, not globally at login.
+The workspace shell handles navigation and logout; pages and components own
+button visibility, disabled states, and explanatory messages.
 Filtering searches names across all available roles, not just
 the loaded page. Duplication copies saved permissions into a custom role
 without members. Member removal revokes that workspace membership and updates
 the visible list without reloading it. Other workspaces and the user's Jot
-session are preserved. Empty custom roles can be deleted; system roles cannot.
+session are preserved. Callers with `roles.delete` can select an empty custom
+role and choose Delete role, then confirm, to remove it. System roles cannot be
+deleted. Delete role is disabled for roles that still have members. A
+hover/focus tooltip explains that all members must first be moved to another
+role. The delete RPC enforces the same rule. If the visible member count was
+stale, the page refreshes it and shows that message.
 Create role opens an accessible name-entry modal for callers with `roles.create`.
 Enter or Create role saves the trimmed, non-empty name and selects the new
 custom role's permissions editor. New roles start without permissions or members.
@@ -203,6 +220,15 @@ retention of another workspace. With an existing Playwright installation, point
 ```powershell
 $env:PLAYWRIGHT_MODULE = 'C:\path\to\playwright\index.mjs'
 npm run test:invitations:browser
+```
+
+The roles browser flow uses the same setup. It checks that roles with members
+have Delete role disabled and show the explanatory tooltip on hover. It also
+checks that empty custom roles can be deleted, and that a stale member count is
+refreshed when the server rejects a deletion:
+
+```powershell
+npm run test:roles:browser
 ```
 
 Start Vite and the Edge Function first. On Windows, the browser test uses installed

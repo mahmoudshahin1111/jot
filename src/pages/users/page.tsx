@@ -1,16 +1,16 @@
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Mail, Plus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { InviteUserDialog } from '@/components/invite-user-dialog'
-import { WorkspaceNavigationContext } from '@/hooks/use-workspace-shell'
+import { InviteUserDialog } from './components/invite-user-dialog'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { useWorkspaceAccess } from '@/hooks/use-workspace-access'
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll'
-import { roleErrorMessage } from '@/hooks/use-workspace-roles'
 import { cancelInvitation, getMyInvitations, getWorkspaceUsers, invitationLimit, type WorkspaceInvitation, type WorkspaceUser } from '@/lib/invitations'
 import { PERMISSIONS } from '@/lib/permissions'
-import { removeRoleMember, rolePageSize } from '@/lib/roles'
+import { removeRoleMember, roleErrorMessage, rolePageSize } from '@/lib/roles'
 import { supabase } from '@/lib/supabaseClient'
 
 export function UsersPage() {
@@ -20,7 +20,8 @@ export function UsersPage() {
 }
 
 function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
-  const access = useContext(WorkspaceNavigationContext)
+  const { hasPermission } = useWorkspacePermissions()
+  const access = useWorkspaceAccess()
   const [section, setSection] = useState<'users' | 'invitations'>('users')
   const [members, setMembers] = useState<WorkspaceUser[]>([])
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([])
@@ -39,9 +40,9 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
   const [connectionAttempt, setConnectionAttempt] = useState(0)
   const generation = useRef(0)
   const inFlight = useRef(false)
-  const canRead = access?.permissions.includes(PERMISSIONS.roles.read) ?? false
-  const canInvite = access?.permissions.includes(PERMISSIONS.roles.addMembers) ?? false
-  const canRemove = access?.permissions.includes(PERMISSIONS.roles.removeMembers) ?? false
+  const canRead = hasPermission(PERMISSIONS.roles.read)
+  const canInvite = hasPermission(PERMISSIONS.roles.addMembers)
+  const canRemove = hasPermission(PERMISSIONS.roles.removeMembers)
 
   useEffect(() => {
     const timeout = setTimeout(() => setSearch(filter.trim()), 250)
@@ -146,7 +147,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
       else await cancelInvitation(id)
       setNotice(member ? `${member.name} removed from this workspace.` : 'Invitation removed. You can invite another user.')
       setRevision(value => value + 1)
-      await access?.checkAccess()
+      await access.checkAccess()
     } catch (cause) {
       setActionError(roleErrorMessage(cause))
       setRevision(value => value + 1)
@@ -169,7 +170,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
           <Plus aria-hidden="true" /> Invite user
         </Button>
       </header>
-      {inviting && canInvite && <InviteUserDialog workspaceId={workspaceId} isOwner={access?.isOwner ?? false} onClose={() => setInviting(false)} onSent={email => {
+      {inviting && canInvite && <InviteUserDialog workspaceId={workspaceId} isOwner={access.workspace?.is_owner ?? false} onClose={() => setInviting(false)} onSent={email => {
         setNotice(`Invitation sent to ${email}. They will join after accepting.`)
         setSection('invitations')
         setRevision(value => value + 1)
