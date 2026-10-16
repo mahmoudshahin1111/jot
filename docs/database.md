@@ -142,6 +142,24 @@ role's member list/count and broadcasts the user's access change through Realtim
 An empty-permission role grants no workspace access until permissions are added.
 Email invitations are managed separately on the Users page.
 
+### Workspace activity
+
+`activity.read` (granted to the Owner role by default) controls the Activity
+page, including direct URL access. Database triggers log events (workspace,
+task, role, member and invitation changes, plus role permission saves) into
+`workspace_activity_events` with the event type, description, actor, timestamp
+and the affected item's id and name, so entries survive deletion of the item.
+The table has no client grants; clients only use RPCs:
+
+- `list_workspace_activity_events(workspace, page_size, before_created_at,
+  before_id, search_term)` requires `activity.read`, searches descriptions
+  case-insensitively and returns `{events, has_more, next_cursor}` using keyset
+  pagination.
+- `get_workspace_role(workspace, role)` requires `roles.read` and is used to
+  open a role linked from an activity event.
+
+Events are only logged for authenticated users, not service-role changes.
+
 ### Workspace email invitations
 
 `workspace_invitations` records the workspace, scoped role, normalized email,

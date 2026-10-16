@@ -1,5 +1,6 @@
-import { useState, type ReactElement } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useState, type ReactElement } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { getRole } from '@/lib/roles'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { Tooltip } from '@base-ui/react/tooltip'
 import { Button } from '@/components/ui/button'
@@ -85,6 +86,18 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
   const canDuplicate = hasPermission(PERMISSIONS.roles.duplicate)
   const canUpdate = hasPermission(PERMISSIONS.roles.update)
   const { tab, setTab, handleKeyDown } = useRoleTabs()
+  const [searchParams] = useSearchParams()
+  const linkedRoleId = searchParams.get('role')
+  const selectRole = state.selectRole
+  useEffect(() => {
+    if (!linkedRoleId) return
+    let active = true
+    getRole(workspaceId, linkedRoleId)
+      .then(found => { if (active && found) selectRole(found) })
+      .catch(() => undefined)
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedRoleId, workspaceId])
   const role = state.selectedRole
   const canEdit = role !== null && state.canEditRole(role)
   const permissionEditReason = state.selfRoleEditBlocked
