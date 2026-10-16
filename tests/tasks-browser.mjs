@@ -3,6 +3,47 @@ import assert from 'node:assert/strict'
 import { pathToFileURL } from 'node:url'
 import { fixture, admin, unwrap } from './invitation-fixture.mjs'
 
+test('Tasks loads all bounded RPC pages for complete counts and description search', async () => {
+  const module = process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright'
+  const { chromium } = await import(module)
+  const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) })
+  const f = await fixture()
+  try {
+    const owner = await f.user('tasks-pagination-owner')
+    const workspaceId = await f.workspace(owner)
+    const tasks = unwrap(await admin.from('tasks').insert(Array.from({ length: 205 }, (_, index) => ({
+      workspace_id: workspaceId, title: `Paged task ${index}`, created_at: '2026-10-16T00:00:00.123456Z',
+    }))).select('id, title'))
+    const lastTask = tasks.sort((a, b) => a.id.localeCompare(b.id)).at(-1)
+    unwrap(await admin.from('tasks').update({ status: 'done', description: 'Beyond first page' }).eq('id', lastTask.id))
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    const requests = []
+    page.on('request', request => {
+      if (request.url().includes('/rest/v1/')) requests.push(request)
+    })
+    await page.goto('http://localhost:5173/login')
+    await page.getByLabel('Email', { exact: true }).fill(owner.email)
+    await page.getByLabel('Password', { exact: true }).fill(owner.password)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.waitForURL(url => url.pathname === '/workspaces')
+    await page.goto(`http://localhost:5173/workspaces/${workspaceId}/tasks`)
+    const filters = page.getByRole('group', { name: 'Filter tasks by status' })
+    await filters.getByRole('button', { name: 'All 205', exact: true }).waitFor()
+    await filters.getByRole('button', { name: 'Done 1', exact: true }).waitFor()
+    await page.getByRole('searchbox', { name: 'Search tasks', exact: true }).fill('BEYOND FIRST PAGE')
+    await page.getByRole('table', { name: 'Workspace tasks' }).getByRole('button', { name: lastTask.title, exact: true }).waitFor()
+    assert.ok(requests.every(request => new URL(request.url()).pathname.startsWith('/rest/v1/rpc/')), 'Browser never queries application tables')
+    const pages = requests.filter(request => request.url().endsWith('/rpc/list_workspace_tasks')).map(request => request.postDataJSON())
+    assert.ok(pages.every(args => args.page_size === 100))
+    assert.equal(new Set(pages.map(args => args.after_id)).size, 3, 'Client traverses every page')
+    await context.close()
+  } finally {
+    await browser.close()
+    await f.cleanup()
+  }
+})
+
 for (const view of ['list', 'board']) {
 test(`Tasks ${view} drag between groups updates immediately and debounces status persistence`, async () => {
   const module = process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright'
@@ -36,8 +77,8 @@ test(`Tasks ${view} drag between groups updates immediately and debounces status
     await page.clock.install()
     await page.clock.pauseAt(new Date())
     let patches = 0
-    await page.route('**/rest/v1/tasks*', async route => {
-      if (route.request().method() === 'PATCH') patches++
+    await page.route('**/rest/v1/rpc/update_workspace_task', async route => {
+      if (route.request().method() === 'POST') patches++
       await route.continue()
     })
     await row.dragTo(group('In progress'))
@@ -52,9 +93,9 @@ test(`Tasks ${view} drag between groups updates immediately and debounces status
     await page.getByText('Task status updated.', { exact: true }).waitFor()
     assert.equal(patches, 1, 'Rapid drops coalesce into one status update')
     assert.equal(unwrap(await admin.from('tasks').select('status').eq('id', task.id).single()).status, 'done')
-    await page.unroute('**/rest/v1/tasks*')
-    await page.route('**/rest/v1/tasks*', async route => {
-      if (route.request().method() === 'PATCH') {
+    await page.unroute('**/rest/v1/rpc/update_workspace_task')
+    await page.route('**/rest/v1/rpc/update_workspace_task', async route => {
+      if (route.request().method() === 'POST') {
         await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'Move denied', code: '42501' }) })
       } else await route.continue()
     })
@@ -64,7 +105,7 @@ test(`Tasks ${view} drag between groups updates immediately and debounces status
     await page.getByRole('alert').filter({ hasText: 'Move denied' }).waitFor()
     await group('Done').getByRole('button', { name: taskButtonName, exact: true }).waitFor()
     assert.equal(unwrap(await admin.from('tasks').select('status').eq('id', task.id).single()).status, 'done')
-    await page.unroute('**/rest/v1/tasks*')
+    await page.unroute('**/rest/v1/rpc/update_workspace_task')
     await page.reload()
     if (view === 'board') await page.getByRole('button', { name: 'Board', exact: true }).click()
     await group('Done').getByRole('button', { name: taskButtonName, exact: true }).waitFor()
@@ -274,7 +315,7 @@ test('Tasks keeps empty status groups visible and creates persistent tasks from 
     await table.getByRole('button', { name: 'To do (2)', exact: true }).waitFor()
     await table.getByRole('cell', { name: 'First workspace task', exact: true }).waitFor()
 
-    await page.route('**/rest/v1/tasks*', async route => {
+    await page.route('**/rest/v1/rpc/create_workspace_task', async route => {
       if (route.request().method() === 'POST') {
         await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'Task creation denied', code: '42501' }) })
       } else await route.continue()
@@ -284,7 +325,7 @@ test('Tasks keeps empty status groups visible and creates persistent tasks from 
     await page.getByRole('alert').filter({ hasText: 'Task creation denied' }).waitFor()
     assert.equal(await input.inputValue(), 'Keep this draft')
     assert.equal(await table.getByRole('cell', { name: 'Keep this draft', exact: true }).count(), 0)
-    await page.unroute('**/rest/v1/tasks*')
+    await page.unroute('**/rest/v1/rpc/create_workspace_task')
     unwrap(await admin.from('tasks').insert([
       { workspace_id: workspaceId, title: 'Work underway', status: 'in_progress', description: 'In progress description' },
       { workspace_id: workspaceId, title: 'Finished work', status: 'done', description: '' },
@@ -297,15 +338,15 @@ test('Tasks keeps empty status groups visible and creates persistent tasks from 
     assert.equal(await table.getByRole('rowgroup', { name: 'Done', exact: true })
       .getByRole('cell', { name: 'Finished work', exact: true }).count(), 1)
 
-    assert.equal((await viewer.client.from('tasks').insert({ workspace_id: workspaceId, title: 'Forbidden viewer task' })).error?.code, '42501')
-    assert.equal((await outsider.client.from('tasks').insert({ workspace_id: workspaceId, title: 'Forbidden outsider task' })).error?.code, '42501')
-    assert.equal((await owner.client.from('tasks').insert({ workspace_id: otherWorkspaceId, title: 'Wrong workspace' })).error?.code, '42501')
-    assert.equal((await owner.client.from('tasks').insert({ workspace_id: workspaceId, title: '   ' })).error?.code, '23514')
+    assert.equal((await viewer.client.rpc('create_workspace_task', { target_workspace_id: workspaceId, task_title: 'Forbidden viewer task' })).error?.code, '42501')
+    assert.equal((await outsider.client.rpc('create_workspace_task', { target_workspace_id: workspaceId, task_title: 'Forbidden outsider task' })).error?.code, '42501')
+    assert.equal((await owner.client.rpc('create_workspace_task', { target_workspace_id: otherWorkspaceId, task_title: 'Wrong workspace' })).error?.code, '42501')
+    assert.equal((await owner.client.rpc('create_workspace_task', { target_workspace_id: workspaceId, task_title: '   ' })).error?.code, '22023')
     const editor = await f.user('tasks-editor')
     unwrap(await admin.from('workspace_users').insert({
       workspace_id: workspaceId, user_id: editor.id, role_id: await f.role('workspace.editor'),
     }))
-    unwrap(await editor.client.from('tasks').insert({ workspace_id: workspaceId, title: 'Editor task' }))
+    unwrap(await editor.client.rpc('create_workspace_task', { target_workspace_id: workspaceId, task_title: 'Editor task' }))
 
     const viewerContext = await browser.newContext()
     const viewerPage = await viewerContext.newPage()
@@ -389,8 +430,8 @@ test('Tasks supports completion, debounced details, safe switching, and deletion
     const detailsBox = await details.boundingBox()
     assert.ok(detailsBox.x > tableBox.x + tableBox.width, 'Details appear beside the table on desktop')
     let patches = 0
-    await page.route('**/rest/v1/tasks*', async route => {
-      if (route.request().method() === 'PATCH') patches++
+    await page.route('**/rest/v1/rpc/update_workspace_task', async route => {
+      if (route.request().method() === 'POST') patches++
       await route.continue()
     })
     await title.fill('Renamed')
@@ -401,7 +442,7 @@ test('Tasks supports completion, debounced details, safe switching, and deletion
     assert.equal(patches, 1, 'Rapid edits are batched into one debounced request')
     assert.deepEqual(await persisted(), { title: 'Renamed task', description: 'Updated description', status: 'in_progress' })
     await table.getByRole('rowgroup', { name: 'In progress', exact: true }).getByRole('button', { name: 'Renamed task', exact: true }).waitFor()
-    await page.unroute('**/rest/v1/tasks*')
+    await page.unroute('**/rest/v1/rpc/update_workspace_task')
 
     await title.fill('   ')
     await details.getByRole('alert').filter({ hasText: 'Task name is required.' }).first().waitFor()
@@ -415,8 +456,8 @@ test('Tasks supports completion, debounced details, safe switching, and deletion
     assert.equal((await persisted()).description, 'Saved before switching')
     await table.getByRole('button', { name: 'Renamed task', exact: true }).click()
 
-    await page.route('**/rest/v1/tasks*', async route => {
-      if (route.request().method() === 'PATCH') {
+    await page.route('**/rest/v1/rpc/update_workspace_task', async route => {
+      if (route.request().method() === 'POST') {
         await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'Save denied', code: '42501' }) })
       } else await route.continue()
     })
@@ -424,7 +465,7 @@ test('Tasks supports completion, debounced details, safe switching, and deletion
     await details.getByRole('alert').filter({ hasText: 'Save denied' }).waitFor()
     assert.equal(await description.inputValue(), 'Retained failed draft')
     assert.equal((await persisted()).description, 'Saved before switching')
-    await page.unroute('**/rest/v1/tasks*')
+    await page.unroute('**/rest/v1/rpc/update_workspace_task')
     await details.getByRole('button', { name: 'Retry saving', exact: true }).click()
     await details.getByText('All changes saved.', { exact: true }).waitFor()
 
@@ -433,8 +474,8 @@ test('Tasks supports completion, debounced details, safe switching, and deletion
     let started
     const requestStarted = new Promise(resolve => { started = resolve })
     let delayed = false
-    await page.route('**/rest/v1/tasks*', async route => {
-      if (route.request().method() === 'PATCH' && !delayed) {
+    await page.route('**/rest/v1/rpc/update_workspace_task', async route => {
+      if (route.request().method() === 'POST' && !delayed) {
         delayed = true
         started()
         await gate
@@ -448,7 +489,7 @@ test('Tasks supports completion, debounced details, safe switching, and deletion
     release()
     await details.waitFor({ state: 'detached' })
     assert.equal((await persisted()).description, 'Newest in-flight edit', 'Close waits for newer edits during an in-flight save')
-    await page.unroute('**/rest/v1/tasks*')
+    await page.unroute('**/rest/v1/rpc/update_workspace_task')
     await page.reload()
     await table.getByRole('button', { name: 'Renamed task', exact: true }).click()
     assert.equal(await description.inputValue(), 'Newest in-flight edit')
@@ -464,21 +505,21 @@ test('Tasks supports completion, debounced details, safe switching, and deletion
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'Mobile layout does not overflow horizontally')
     await page.setViewportSize({ width: 1440, height: 1000 })
 
-    const viewerUpdate = await viewer.client.from('tasks').update({ title: 'Unauthorized' }).eq('id', first.id).select()
-    assert.deepEqual(unwrap(viewerUpdate), [])
-    assert.deepEqual(unwrap(await viewer.client.from('tasks').delete().eq('id', first.id).select()), [])
-    assert.deepEqual(unwrap(await editor.client.from('tasks').delete().eq('id', first.id).select()), [])
-    assert.deepEqual(unwrap(await outsider.client.from('tasks').update({ status: 'done' }).eq('id', first.id).select()), [])
-    assert.deepEqual(unwrap(await outsider.client.from('tasks').delete().eq('id', first.id).select()), [])
-    await page.route('**/rest/v1/tasks*', async route => {
-      if (route.request().method() === 'DELETE') {
+    const target = { target_workspace_id: workspaceId, target_task_id: first.id }
+    assert.equal((await viewer.client.rpc('update_workspace_task', { ...target, task_status: 'done', task_title: 'Unauthorized' })).error?.code, '42501')
+    assert.equal((await viewer.client.rpc('delete_workspace_task', target)).error?.code, '42501')
+    assert.equal((await editor.client.rpc('delete_workspace_task', target)).error?.code, '42501')
+    assert.equal((await outsider.client.rpc('update_workspace_task', { ...target, task_status: 'done' })).error?.code, '42501')
+    assert.equal((await outsider.client.rpc('delete_workspace_task', target)).error?.code, '42501')
+    await page.route('**/rest/v1/rpc/delete_workspace_task', async route => {
+      if (route.request().method() === 'POST') {
         await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'Delete denied', code: '42501' }) })
       } else await route.continue()
     })
     await details.getByRole('button', { name: 'Delete task', exact: true }).click()
     await details.getByRole('alert').filter({ hasText: 'Delete denied' }).waitFor()
     assert.equal(unwrap(await admin.from('tasks').select('id').eq('id', first.id)).length, 1)
-    await page.unroute('**/rest/v1/tasks*')
+    await page.unroute('**/rest/v1/rpc/delete_workspace_task')
     await details.getByRole('button', { name: 'Delete task', exact: true }).click()
     await details.waitFor({ state: 'detached' })
     await table.getByRole('button', { name: 'Renamed task', exact: true }).waitFor({ state: 'detached' })

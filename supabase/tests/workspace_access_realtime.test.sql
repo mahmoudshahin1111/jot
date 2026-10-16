@@ -10,6 +10,7 @@ grant select on realtime_fixture to authenticated, anon;
 create function pg_temp.realtime_id(name text) returns uuid language sql as $$
   select id from realtime_fixture where realtime_fixture.name = $1;
 $$;
+grant execute on function pg_temp.realtime_id(text) to authenticated, anon;
 
 insert into auth.users (id) select id from realtime_fixture where name in ('user', 'other');
 insert into public.workspaces (id, name) values (pg_temp.realtime_id('workspace'), 'Realtime access test');
@@ -50,8 +51,8 @@ select set_config('realtime.topic', 'workspace-access:' || pg_temp.realtime_id('
 set local role authenticated;
 select is(public.get_workspace_access(pg_temp.realtime_id('workspace')),
   null::jsonb, 'Removing the last permission revokes access');
-select is((select count(*) from public.workspaces where id = pg_temp.realtime_id('workspace')),
-  0::bigint, 'Workspace picker and direct queries hide workspaces without permissions');
+select is(jsonb_array_length(public.list_my_workspaces()),
+  0, 'Workspace picker hides workspaces without permissions');
 select is((select count(*) from realtime.messages where topic = 'workspace-access:' || pg_temp.realtime_id('user')),
   1::bigint, 'User can receive their notification after revocation');
 reset role;

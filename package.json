@@ -11,6 +11,7 @@
     "test:invitations:browser": "node --test tests/invitation-browser.mjs",
     "test:roles:browser": "node --test tests/roles-browser.mjs",
     "test:tasks:browser": "node --test tests/tasks-browser.mjs",
+    "test:rpc": "node --test tests/rpc-access.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

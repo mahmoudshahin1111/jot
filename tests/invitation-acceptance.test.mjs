@@ -21,10 +21,10 @@ test('acceptance is confirmed-email-bound, preserves other workspaces, and frees
     assert.equal(preview.email, recipient.email)
     assert.equal(unwrap(await recipient.client.rpc('accept_workspace_invitation', { invitation_id: id })), workspace)
     assert.equal(unwrap(await recipient.client.rpc('accept_workspace_invitation', { invitation_id: id })), workspace, 'Acceptance must be idempotent')
-    const memberships = unwrap(await recipient.client.from('workspace_users').select('*').eq('user_id', recipient.id))
+    const memberships = unwrap(await recipient.client.rpc('list_my_workspaces'))
     assert.equal(memberships.length, 2)
-    assert.equal(memberships.find(row => row.workspace_id === workspace).role_id, viewer)
-    assert.ok(memberships.some(row => row.workspace_id === original))
+    assert.equal(unwrap(await recipient.client.rpc('get_workspace_access', { target_workspace_id: workspace })).role_id, viewer)
+    assert.ok(memberships.some(row => row.id === original))
     assert.equal(unwrap(await sender.client.rpc('list_my_workspace_invitations')).length, 0)
     assert.equal((await sender.client.rpc('create_workspace_invitation', {
       target_workspace_id: workspace, target_role_id: viewer, invited_email: recipient.email,

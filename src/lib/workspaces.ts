@@ -25,10 +25,19 @@ export const createWorkspaceSchema = z.object({
 })
 
 export async function getUserWorkspaces() {
-  const { data, error } = await supabase.from('workspaces')
-    .select('id, name').order('created_at', { ascending: true })
-  if (error) throw new Error(error.message)
-  return z.array(workspaceSchema).parse(data)
+  const pageSchema = z.array(workspaceSchema.extend({ created_at: z.string() }))
+  const workspaces: Workspace[] = []
+  let after: z.infer<typeof pageSchema>[number] | undefined
+  for (;;) {
+    const { data, error } = await supabase.rpc('list_my_workspaces', {
+      page_size: 100, after_created_at: after?.created_at ?? null, after_id: after?.id ?? null,
+    })
+    if (error) throw new Error(error.message)
+    const page = pageSchema.parse(data)
+    workspaces.push(...page.map(workspace => workspaceSchema.parse(workspace)))
+    if (page.length < 100) return workspaces
+    after = page[page.length - 1]
+  }
 }
 
 export async function createWorkspace(name: string) {
@@ -38,8 +47,6 @@ export async function createWorkspace(name: string) {
 }
 
 export async function getWorkspace(id: string) {
-  const { data, error } = await supabase.from('workspaces')
-    .select('id, name').eq('id', id).maybeSingle()
-  if (error) throw new Error(error.message)
-  return data === null ? null : workspaceSchema.parse(data)
+  const access = await getWorkspaceAccess(id)
+  return access === null ? null : workspaceSchema.parse(access)
 }

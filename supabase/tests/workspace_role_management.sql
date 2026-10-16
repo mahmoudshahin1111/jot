@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 begin;
+-- Transaction-only reads support legacy persistence assertions, not client access.
+grant select on public.roles, public.permissions to authenticated;
 
 create temporary table role_test_fixture (
   workspace_id uuid, other_workspace_id uuid, owner_id uuid, member_id uuid,

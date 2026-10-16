@@ -43,7 +43,7 @@ test('local Supabase emails invite existing and new accounts, with acceptance re
       assert.equal(session.user.email, email)
       assert.equal(unwrap(await admin.from('workspace_users').select('*').eq('workspace_id', workspace).eq('user_id', session.user.id)).length, 0, 'Email verification alone must not grant membership')
       assert.equal(unwrap(await recipient.rpc('accept_workspace_invitation', { invitation_id: invitation.id })), workspace)
-      assert.equal(unwrap(await recipient.from('workspace_users').select('*').eq('workspace_id', workspace).eq('user_id', session.user.id)).length, 1)
+      assert.equal(unwrap(await recipient.rpc('get_workspace_access', { target_workspace_id: workspace })).role_id, viewer)
     }
     assert.equal(unwrap(await sender.client.rpc('list_my_workspace_invitations')).length, 0)
     const failed = await sender.client.functions.invoke('invite-workspace-user', {

@@ -12,7 +12,7 @@ Each `public.tasks` row belongs to a workspace through its required
 a description defaulting to an empty string, and a creation timestamp.
 Tasks cannot be moved between workspaces. Each task also has a required
 `status` of `todo` (default), `in_progress` or `done`. The workspace Tasks page
-reads a workspace's tasks directly; RLS limits results to members with `tasks.read`.
+reads tasks through `list_workspace_tasks`, which requires `tasks.read`.
 
 No root or default workspace is created by migrations or seeds. Signup
 onboarding requires a user to belong to at least one workspace before
@@ -26,20 +26,28 @@ and refuses to remove it if it contains tasks, members, or custom roles.
 All workspace tasks are accessible to each member according to their workspace
 role, rather than individual task sharing.
 
-RLS permits members to read their workspace and their own membership row.
-Task read, create, update, and delete policies check the member's role and permission
-IDs. Deleting a task deletes it for every member of that workspace.
+RLS remains enabled as defense in depth, but application table privileges are
+revoked from `PUBLIC`, `anon`, and `authenticated`, including column grants.
+Clients cannot directly SELECT, INSERT, UPDATE, or DELETE any application table,
+even as workspace owners. Sequence privileges and public-schema object creation
+are also denied. Supabase-managed `auth`, `storage`, and `realtime` schemas are
+not changed. Trusted administrative connections and server-only `service_role`
+access are preserved.
+
+Existing RLS policies permit members to read their workspace and their own
+membership row. Task read, create, update, and delete policies check the member's
+role and permission IDs. Deleting a task deletes it for every member of that workspace.
 Deleting a user removes their memberships, not workspace tasks. Deleting a
 workspace through a trusted administrative connection removes its tasks,
 memberships, and custom roles.
 
-Anonymous access remains blocked. Authenticated clients can insert tasks only
-with `tasks.create` in the target workspace. Task names must not be blank; the
-inline form trims names and uses the database defaults of an empty description
+Anonymous access remains blocked. Authenticated clients can create tasks only
+through `create_workspace_task` with `tasks.create` in the target workspace.
+Task names must not be blank; the inline form trims names and uses the database defaults of an empty description
 and `todo` status. Owners and Editors receive `tasks.create` by default.
 Workspace role
-management uses the authorized RPCs described below; other direct workspace,
-membership, role, and permission writes remain blocked. Leaving individual
+management uses the authorized RPCs described below; all direct application
+table reads and writes are blocked. Leaving individual
 tasks is no longer supported.
 
 Authenticated users can call `public.create_workspace(workspace_name)` to
@@ -47,7 +55,49 @@ create a workspace and assign themselves the shared `workspace.owner` role
 in one transaction. The function takes no user or role ID from the client,
 validates the name, and rejects unauthenticated callers. Direct client inserts
 into workspaces and memberships remain blocked. Existing workspace membership
-is checked through the RLS-protected workspace query.
+is checked through `get_workspace_access`; `list_my_workspaces` returns only
+the caller's accessible workspaces.
+
+## RPC-only client access
+
+Apply `20261016210000_require_application_rpcs.sql` before deploying the matching
+frontend, preferably in a coordinated deployment: older clients using direct
+table queries will receive permission errors after the migration.
+All client data access in `src/lib/` uses RPCs. Each security-definer RPC uses an
+empty search path, schema-qualified objects, caller-bound authorization, and
+an explicit authenticated execute grant. UI permission checks are not a
+substitute for these database checks.
+
+| Function | Required permission | Behavior |
+| --- | --- | --- |
+| `list_my_workspaces` | Authenticated membership with at least one permission | Returns only accessible workspaces. |
+| `list_workspace_tasks` | `tasks.read` | Lists tasks in exactly one authorized workspace. |
+| `create_workspace_task` | `tasks.create` | Validates and trims the title; returns the new task with default description and status. |
+| `update_workspace_task` | `tasks.update` | Updates a task by workspace and task UUID, validates title/status, and returns the saved task. Omitted/null title or description leaves that field unchanged, supporting status-only saves. Status is required. |
+| `delete_workspace_task` | `tasks.delete` | Deletes exactly one workspace-scoped task and returns its UUID. |
+| `duplicate_workspace_role_details` | `roles.duplicate` | Calls the existing authorized duplication function and returns the new role and permission IDs atomically, without follow-up table reads. |
+
+The two new list RPCs accept `page_size` from **1 to 100** (default 100).
+They return at most that many rows, ordered by `(created_at, id)`; pass both
+`after_created_at` and `after_id` from the last row for the next page. Null,
+oversized, or nonpositive page sizes and partial cursors are rejected.
+Task timestamps retain database precision in the cursor. The frontend fetches
+all pages so workspace choices, task counts, filters, and search remain complete;
+the bound is per RPC call, not a total client-side task limit. Existing role/user
+list RPCs keep their bounded page-plus-one lookahead contracts. Pending invitation
+lists are bounded by the ten-invitation sender cap.
+
+Unauthorized RPCs raise permission errors; missing or wrong-workspace tasks
+raise a not-found error rather than returning a successful empty mutation.
+Task updates cannot change workspace membership or any task's workspace UUID.
+Access revocation is checked again on each RPC call.
+
+Default privileges for the `postgres` migration owner no longer grant clients
+access to future tables, sequences, or functions. New RPCs must explicitly grant
+EXECUTE only to the intended caller roles. PostgreSQL's global function default
+must also be revoked because a schema-level default cannot override it.
+Objects created by another owner require equivalent default-privilege setup by
+that owner; Supabase internal owner defaults are not modified.
 
 ## Roles and permissions
 
@@ -78,9 +128,9 @@ primary key prevents duplicate mappings, and deleting a role or permission
 removes its mappings without deleting the other entity. A permission index
 supports reverse lookups.
 
-Authenticated users can read system roles, their workspaces' custom roles,
-associated permission mappings, and permission definitions. Client writes to
-these tables remain blocked; authorized role changes use narrowly scoped RPCs.
+Authenticated users with `roles.read` can read scoped role and permission details
+through role-management RPCs. Direct table reads and writes remain blocked;
+authorized role changes use narrowly scoped RPCs.
 Permission checks use narrowly scoped security-definer functions in the
 unexposed `private` schema to avoid recursive RLS on membership tables.
 
@@ -103,7 +153,7 @@ a reset or rerunning the seed.
 
 All RPCs below require an authenticated workspace membership and the indicated
 permission. They use security-definer functions with an empty search path and
-explicit authenticated-only execute grants; direct table writes stay blocked.
+explicit authenticated-only execute grants; direct table access stays blocked.
 
 | Function | Required permission | Behavior |
 | --- | --- | --- |
@@ -198,7 +248,8 @@ client access state; RLS and RPC checks remain the authorization authority.
 Realtime must be enabled in the deployed Supabase project. No Postgres Changes
 publication or replica-identity changes are needed for database Broadcast.
 The workspace SELECT policy also requires at least one assigned permission,
-so revoked workspaces disappear from the picker and direct workspace queries.
+and the workspace list RPC applies the same check, so revoked workspaces
+disappear from the picker.
 
 Both list RPCs accept page sizes from 1 to 100 and return one extra lookahead
 row so clients know whether another page exists. The UI requests ten rows and
@@ -223,5 +274,17 @@ The tests run in rolled-back transactions and cover task permissions,
 workspace isolation, membership removal, deletion cascades, role RPC
 authorization, system-role immutability, stale permission writes, pagination,
 duplication without members, and last-owner protection.
+The RPC-only suite verifies real anonymous/authenticated CRUD denials across all
+public tables, column privileges, future-object defaults, and trusted-service
+access. Legacy RLS tests deliberately restore table privileges inside their
+rolled-back transactions to keep testing policies as defense in depth; other
+legacy SQL suites grant transaction-only reads for fixture/persistence assertions.
+These grants are never applied by migrations or retained after tests.
+
+Run HTTP-level access, task mutation, and cursor-pagination checks with:
+
+```powershell
+npm run test:rpc
+```
 
 [Back to project documentation](../README.md)

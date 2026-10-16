@@ -1,4 +1,6 @@
 begin;
+-- Transaction-only reads support legacy permission-ID lookups, not client access.
+grant select on public.permissions to authenticated;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(6);

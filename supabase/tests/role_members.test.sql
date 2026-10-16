@@ -1,4 +1,6 @@
 begin;
+-- Transaction-only reads support legacy permission-ID lookups, not client access.
+grant select on public.roles, public.permissions to authenticated;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select no_plan();
@@ -10,6 +12,7 @@ from unnest(array['workspace', 'other_workspace', 'owner', 'member', 'other_memb
 create function pg_temp.f(n text) returns uuid language sql as $$
   select id from member_fixture where name = n;
 $$;
+grant execute on function pg_temp.f(text) to authenticated, anon;
 insert into auth.users (id, email) values
   (pg_temp.f('owner'), 'role-owner@example.test'),
   (pg_temp.f('member'), 'role-member@example.test'),

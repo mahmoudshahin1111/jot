@@ -31,7 +31,7 @@ export async function runInvitationBrowserFlow(browser, fixture) {
     await recipientPage.goto(link)
     await recipientPage.getByRole('button', { name: 'Accept invitation', exact: true }).waitFor()
     await recipientPage.getByRole('button', { name: 'Accept invitation', exact: true }).click()
-    await recipientPage.waitForURL(`**/workspaces/${fixture.workspaceId}/dashboard`)
+    await recipientPage.waitForURL(`**/workspaces/${fixture.workspaceId}/tasks`)
     await recipientPage.getByRole('link', { name: 'All workspaces', exact: true }).click()
     await recipientPage.getByRole('link', { name: /Open workspace/ }).nth(1).waitFor()
     await recipientPage.goto(`http://localhost:5173/workspaces/${fixture.workspaceId}/dashboard`)

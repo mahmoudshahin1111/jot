@@ -1,4 +1,6 @@
 begin;
+-- Transaction-only reads support legacy persistence assertions, not client access.
+grant select on public.roles, public.permissions, public.role_permissions to authenticated;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select no_plan();
@@ -10,6 +12,7 @@ select name, gen_random_uuid() from unnest(array['workspace', 'owner', 'manager'
 create function pg_temp.f(n text) returns uuid language sql as $$
   select id from self_role_fixture where name = n;
 $$;
+grant execute on function pg_temp.f(text) to authenticated;
 insert into auth.users (id) values (pg_temp.f('owner')), (pg_temp.f('manager'));
 insert into public.workspaces (id, name) values (pg_temp.f('workspace'), 'Self-role test');
 insert into public.roles (id, key, name, workspace_id) values

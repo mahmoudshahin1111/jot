@@ -1,4 +1,6 @@
 begin;
+-- Transaction-only reads support legacy cursor fixture lookups, not client access.
+grant select on public.roles to authenticated;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select no_plan();

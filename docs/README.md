@@ -79,7 +79,7 @@ Both pages link to each other and share the shadcn layout.
 Login uses React Hook Form and Zod to validate email and a non-empty password,
 then calls Supabase password sign-in. Errors appear in the form. Successful
 login goes to `/workspaces`, which queries Supabase for the authenticated user's
-workspaces under RLS. Users without memberships are redirected to
+workspaces through the authorized, paginated `list_my_workspaces` RPC. Users without memberships are redirected to
 `/workspaces/new`; users with memberships see their workspace list.
 The creation page validates the name and calls `create_workspace`, creating
 the workspace and assigning the creator `workspace.owner` atomically.
@@ -148,8 +148,12 @@ saved in the current workspace with To do status and an empty description,
 then appear immediately in the table. Creation errors keep the draft and show
 an alert. Users without create permission have no add form.
 The creation migration grants `tasks.create` to Owners and Editors and enforces
-the permission through an insert RLS policy; Viewers remain read-only.
-Apply `20261016180000_allow_workspace_task_creation.sql` before deploying.
+the permission in the task creation RPC as well as the defense-in-depth insert
+RLS policy; Viewers remain read-only. All browser data access is RPC-only:
+direct table reads and writes are denied, including for workspace owners.
+Apply `20261016210000_require_application_rpcs.sql` with the matching frontend.
+See [RPC-only client access](./database.md#rpc-only-client-access) for permissions,
+page limits, deployment ordering, and future-object grants.
 
 Task checkboxes require `tasks.update`: checking moves the task to Done, and
 unchecking returns it to To do. Click a task row or its keyboard-accessible

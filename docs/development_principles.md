@@ -25,6 +25,15 @@ own the explanatory messages and tooltips. Expose permission facts or check
 functions rather than page-specific reason strings. Preserve action guards in
 hooks and authorization enforcement on the server.
 
+### Access application data through authorized RPCs
+
+Browser code must use database functions rather than querying application tables
+directly. Each RPC must authenticate the caller, enforce the relevant workspace
+permission, constrain resource IDs to that workspace, and validate inputs.
+Bound list responses and use stable cursors; consumers must not silently truncate
+data needed for counts, filtering, or search. Explicitly grant execution only to
+intended callers and preserve server-only credentials outside browser bundles.
+
 ### Dynamic text must not displace adjacent controls
 
 Treat user-defined names and other dynamic labels as potentially long. In

@@ -30,43 +30,52 @@ const updateTaskSchema = createTaskSchema.extend({
 
 export async function updateWorkspaceTask(workspaceId: string, task: Task) {
   const input = updateTaskSchema.parse(task)
-  const { data, error } = await supabase.from('tasks')
-    .update(input).eq('workspace_id', workspaceId).eq('id', task.id)
-    .select('id, title, description, status').single()
+  const { data, error } = await supabase.rpc('update_workspace_task', {
+    target_workspace_id: workspaceId, target_task_id: task.id,
+    task_title: input.title, task_description: input.description, task_status: input.status,
+  })
   if (error) throw new Error(error.message)
   return taskSchema.parse(data)
 }
 
 export async function deleteWorkspaceTask(workspaceId: string, taskId: string) {
-  const { data, error } = await supabase.from('tasks')
-    .delete().eq('workspace_id', workspaceId).eq('id', taskId).select('id').single()
+  const { data, error } = await supabase.rpc('delete_workspace_task', {
+    target_workspace_id: workspaceId, target_task_id: taskId,
+  })
   if (error) throw new Error(error.message)
   return z.object({ id: z.string().uuid() }).parse(data)
 }
 
 export async function updateWorkspaceTaskStatus(workspaceId: string, taskId: string, status: TaskStatus) {
-  const { data, error } = await supabase.from('tasks')
-    .update({ status }).eq('workspace_id', workspaceId).eq('id', taskId)
-    .select('id, title, description, status').single()
+  const { data, error } = await supabase.rpc('update_workspace_task', {
+    target_workspace_id: workspaceId, target_task_id: taskId, task_status: status,
+  })
   if (error) throw new Error(error.message)
   return taskSchema.parse(data)
 }
 
 export async function createWorkspaceTask(workspaceId: string, title: string) {
   const input = createTaskSchema.parse({ title })
-  const { data, error } = await supabase.from('tasks')
-    .insert({ workspace_id: workspaceId, title: input.title })
-    .select('id, title, description, status')
-    .single()
+  const { data, error } = await supabase.rpc('create_workspace_task', {
+    target_workspace_id: workspaceId, task_title: input.title,
+  })
   if (error) throw new Error(error.message)
   return taskSchema.parse(data)
 }
 
 export async function getWorkspaceTasks(workspaceId: string) {
-  const { data, error } = await supabase.from('tasks')
-    .select('id, title, description, status')
-    .eq('workspace_id', workspaceId)
-    .order('created_at', { ascending: true })
-  if (error) throw new Error(error.message)
-  return z.array(taskSchema).parse(data)
+  const pageSchema = z.array(taskSchema.extend({ created_at: z.string() }))
+  const tasks: Task[] = []
+  let after: z.infer<typeof pageSchema>[number] | undefined
+  for (;;) {
+    const { data, error } = await supabase.rpc('list_workspace_tasks', {
+      target_workspace_id: workspaceId, page_size: 100,
+      after_created_at: after?.created_at ?? null, after_id: after?.id ?? null,
+    })
+    if (error) throw new Error(error.message)
+    const page = pageSchema.parse(data)
+    tasks.push(...page.map(task => taskSchema.parse(task)))
+    if (page.length < 100) return tasks
+    after = page[page.length - 1]
+  }
 }

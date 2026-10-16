@@ -1,5 +1,9 @@
 begin;
 
+-- Exercise RLS as defense in depth if table grants are accidentally restored.
+-- Production grant denial is verified separately in rpc_only_access.test.sql.
+grant select, insert, update, delete on all tables in schema public to authenticated, anon;
+
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select no_plan();
@@ -18,6 +22,7 @@ create function pg_temp.fixture_id(fixture_name text)
 returns uuid language sql as $$
   select id from fixture_ids where name = fixture_name;
 $$;
+grant execute on function pg_temp.fixture_id(text) to authenticated, anon;
 
 insert into auth.users (id)
 select id from fixture_ids where name in ('owner', 'editor', 'viewer', 'outsider', 'custom_member');
@@ -159,10 +164,11 @@ select throws_ok(
     where r.is_system and r.key = 'workspace.editor' and p.key = 'tasks.delete'$$,
   '42501', null, 'Editor cannot grant themselves delete permission'
 );
+select set_config('request.jwt.claim.sub', pg_temp.fixture_id('viewer')::text, true);
 select throws_ok(
   $$insert into public.tasks (title, workspace_id)
     values ('Forbidden create', pg_temp.fixture_id('workspace_a'))$$,
-  '42501', null, 'Task creation remains blocked'
+  '42501', null, 'Viewer task creation remains blocked'
 );
 
 select set_config('request.jwt.claim.sub', pg_temp.fixture_id('viewer')::text, true);

@@ -120,23 +120,11 @@ export async function saveRolePermissions(workspaceId: string, role: WorkspaceRo
 }
 
 export async function duplicateRole(workspaceId: string, roleId: string) {
-  const { data, error } = await supabase.rpc('duplicate_workspace_role', {
+  const { data, error } = await supabase.rpc('duplicate_workspace_role_details', {
     target_workspace_id: workspaceId, target_role_id: roleId,
   })
   if (error) throw error
-  const id = z.string().uuid().parse(data)
-  const [roleResult, permissionsResult] = await Promise.all([
-    supabase.from('roles').select('id, key, name, is_system').eq('id', id).single(),
-    supabase.from('role_permissions').select('permission_id').eq('role_id', id),
-  ])
-  if (roleResult.error) throw roleResult.error
-  if (permissionsResult.error) throw permissionsResult.error
-  const permissions = z.array(z.object({ permission_id: z.string().uuid() })).parse(permissionsResult.data)
-  return roleSchema.parse({
-    ...roleResult.data,
-    member_count: 0,
-    permission_ids: permissions.map(permission => permission.permission_id),
-  })
+  return roleSchema.parse(data)
 }
 
 export async function deleteRole(workspaceId: string, roleId: string) {
