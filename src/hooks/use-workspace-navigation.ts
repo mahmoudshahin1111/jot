@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom'
-import { Activity, LayoutDashboard, Shield, Users, type LucideIcon } from 'lucide-react'
+import { Activity, LayoutDashboard, ListChecks, Shield, Users, type LucideIcon } from 'lucide-react'
 import type { BreadcrumbItem } from '@/components/breadcrumb'
 import { PERMISSIONS, type PermissionKey } from '@/lib/permissions'
 
@@ -11,6 +11,7 @@ export function useWorkspaceNavigation(workspaceId: string, permissions: readonl
       label: 'Overview',
       items: [
         { to: `${basePath}/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
+        { to: `${basePath}/tasks`, label: 'Tasks', icon: ListChecks, permission: PERMISSIONS.tasks.read },
         { to: `${basePath}/activity`, label: 'Activity', icon: Activity },
       ],
     },
