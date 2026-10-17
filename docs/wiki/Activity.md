@@ -13,6 +13,7 @@ Activity is the workspace history. You need the `activity:read` permission to op
 ## Using the page
 - **Search** looks in the event descriptions.
 - Events are shown newest first, a page at a time. Use the controls at the bottom to change page.
+- Each event type has a distinct badge color. Badges stay on one line; on narrow screens, scroll the table horizontally.
 - Click an event to open its details:
   - What happened and when
   - **Who** did it, with their name and email

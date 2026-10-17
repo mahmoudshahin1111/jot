@@ -17,6 +17,8 @@ export function useWorkspaceTasks(workspaceId: string) {
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [countRevision, setCountRevision] = useState(0)
+  const [searchCountRevision, setSearchCountRevision] = useState(0)
   const creationInFlight = useRef(false)
   const navigation = useContext(WorkspaceNavigationContext)
   const [draft, setDraft] = useState<Task | null>(null)
@@ -47,6 +49,7 @@ export function useWorkspaceTasks(workspaceId: string) {
           if (!canUpdate) throw new Error('You do not have permission to update tasks.')
           const snapshot = pendingMoveRef.current
           const updated = await updateWorkspaceTaskStatus(workspaceId, snapshot.task.id, snapshot.status)
+          setCountRevision(value => value + 1)
           setTasks(previous => previous?.map(task => task.id === updated.id ? updated : task) ?? null)
           if (draftRef.current?.id === updated.id) {
             savedRef.current = updated
@@ -93,6 +96,8 @@ export function useWorkspaceTasks(workspaceId: string) {
           const validation = createTaskSchema.safeParse(snapshot)
           if (!validation.success) throw new Error(validation.error.issues[0].message)
           const updated = await updateWorkspaceTask(workspaceId, snapshot)
+          if (updated.status !== savedRef.current.status) setCountRevision(value => value + 1)
+          else setSearchCountRevision(value => value + 1)
           savedRef.current = updated
           setTasks(previous => previous?.map(task => task.id === updated.id ? updated : task) ?? null)
           if (draftRef.current === snapshot) {
@@ -184,6 +189,7 @@ export function useWorkspaceTasks(workspaceId: string) {
       const updated = await updateWorkspaceTask(workspaceId, {
         ...current, status: current.status === 'done' ? 'todo' : 'done',
       })
+      setCountRevision(value => value + 1)
       setTasks(previous => previous?.map(item => item.id === task.id ? updated : item) ?? null)
       if (draftRef.current?.id === task.id) {
         savedRef.current = updated
@@ -208,6 +214,7 @@ export function useWorkspaceTasks(workspaceId: string) {
       if (!(await flushMove())) return
       if (savePromise.current && !(await savePromise.current)) return
       await deleteWorkspaceTask(workspaceId, task.id)
+      setCountRevision(value => value + 1)
       setTasks(previous => previous?.filter(item => item.id !== task.id) ?? null)
       draftRef.current = null
       savedRef.current = null
@@ -244,6 +251,7 @@ export function useWorkspaceTasks(workspaceId: string) {
     setNotice('')
     try {
       const task = await createWorkspaceTask(workspaceId, title)
+      setCountRevision(value => value + 1)
       setTasks(previous => [...(previous ?? []), task])
       setNotice('Task added.')
       return true
@@ -259,6 +267,7 @@ export function useWorkspaceTasks(workspaceId: string) {
   return {
     tasks: tasks?.map(task => pendingMove?.task.id === task.id ? { ...task, status: pendingMove.status } : task) ?? null,
     error, actionError, creating, notice, create, move, moving, movePending: pendingMove !== null,
+    countRevision: countRevision + attempt, searchCountRevision: countRevision + searchCountRevision + attempt,
     draft, changeDraft, select, complete, remove, save, saving, dirty, saved, editorError, mutationId,
     retry: () => { setTasks(null); setError(null); setAttempt(value => value + 1) },
   }

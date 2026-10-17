@@ -36,7 +36,7 @@ select pg_temp.f('other_workspace'), pg_temp.f('member'), id from public.roles w
 select set_config('request.jwt.claim.sub', pg_temp.f('owner')::text, true);
 set local role authenticated;
 select is(
-  (public.list_workspace_role_members(pg_temp.f('workspace'), pg_temp.f('custom'))->>'total')::integer,
+  public.count_workspace_role_members(pg_temp.f('workspace'), pg_temp.f('custom'))::integer,
   2, 'Members are scoped to the selected workspace and role'
 );
 select is(
@@ -72,7 +72,7 @@ select lives_ok(
   'Owner can remove a role member'
 );
 select is(
-  (public.list_workspace_role_members(pg_temp.f('workspace'), pg_temp.f('custom'))->>'total')::integer,
+  public.count_workspace_role_members(pg_temp.f('workspace'), pg_temp.f('custom'))::integer,
   1, 'Member count changes after removal'
 );
 select set_config('request.jwt.claim.sub', pg_temp.f('member')::text, true);

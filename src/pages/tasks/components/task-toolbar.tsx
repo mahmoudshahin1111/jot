@@ -1,13 +1,13 @@
 import { Columns3, List } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { taskStatuses, taskStatusLabels, type Task, type TaskStatus } from '@/lib/tasks'
+import { taskStatuses, taskStatusLabels, type TaskCounts, type TaskStatus } from '@/lib/tasks'
 
 export type TaskStatusFilter = 'all' | TaskStatus
 export type TaskView = 'list' | 'board'
 
-export function TaskToolbar({ tasks, status, search, view, onViewChange, onStatusChange, onSearchChange }: {
-  tasks: Task[]
+export function TaskToolbar({ counts, status, search, view, onViewChange, onStatusChange, onSearchChange }: {
+  counts: TaskCounts | null
   status: TaskStatusFilter
   search: string
   view: TaskView
@@ -36,7 +36,7 @@ export function TaskToolbar({ tasks, status, search, view, onViewChange, onStatu
           >
             {value === 'all' ? 'All' : taskStatusLabels[value]}
             <span className="text-muted-foreground">
-              {value === 'all' ? tasks.length : tasks.filter(task => task.status === value).length}
+              {counts?.[value] ?? '...'}
             </span>
           </Button>
         ))}

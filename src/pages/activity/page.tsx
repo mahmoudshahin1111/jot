@@ -1,25 +1,37 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { useRecordCount } from '@/hooks/use-record-count'
 import { PERMISSIONS } from '@/lib/permissions'
 import {
-  activityEventLabel, activityItemPath, activityPageSize, getActivityEvents,
+  activityEventLabel, activityItemPath, activityPageSize, countActivityEvents, getActivityEvents,
   type ActivityCursor, type ActivityEvent,
 } from '@/lib/activity'
 
+const eventTypeColors: Record<string, string> = {
+  'workspace.created': 'border-slate-500 text-slate-700 dark:text-slate-400',
+  'task.created': 'border-cyan-500 text-cyan-700 dark:text-cyan-400',
+  'task.updated': 'border-blue-500 text-blue-700 dark:text-blue-400',
+  'task.deleted': 'border-indigo-500 text-indigo-700 dark:text-indigo-400',
+  'role.created': 'border-violet-500 text-violet-700 dark:text-violet-400',
+  'role.updated': 'border-purple-500 text-purple-700 dark:text-purple-400',
+  'role.deleted': 'border-fuchsia-500 text-fuchsia-700 dark:text-fuchsia-400',
+  'role.permissions.updated': 'border-pink-500 text-pink-700 dark:text-pink-400',
+  'member.added': 'border-emerald-500 text-emerald-700 dark:text-emerald-400',
+  'member.role_changed': 'border-teal-500 text-teal-700 dark:text-teal-400',
+  'member.removed': 'border-lime-500 text-lime-700 dark:text-lime-400',
+  'invitation.created': 'border-amber-500 text-amber-700 dark:text-amber-400',
+  'invitation.canceled': 'border-orange-500 text-orange-700 dark:text-orange-400',
+  'invitation.accepted': 'border-rose-500 text-rose-700 dark:text-rose-400',
+}
+
 function EventTypeBadge({ eventType }: { eventType: string }) {
-  const color = eventType.endsWith('.created') || eventType.endsWith('.added') || eventType.endsWith('.accepted')
-    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-    : eventType.endsWith('.updated') || eventType.endsWith('.role_changed')
-      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-      : eventType.endsWith('.deleted') || eventType.endsWith('.removed') || eventType.endsWith('.canceled')
-        ? 'border-amber-500 text-amber-600 dark:text-amber-400'
-        : 'border-transparent bg-muted text-foreground'
-  return <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>{activityEventLabel(eventType)}</span>
+  const color = eventTypeColors[eventType] ?? 'border-transparent bg-muted text-foreground'
+  return <span className={`inline-block whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>{activityEventLabel(eventType)}</span>
 }
 
 export function ActivityPage() {
@@ -39,12 +51,13 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [cursor, setCursor] = useState<ActivityCursor | null>(null)
   const [hasMore, setHasMore] = useState(false)
-  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ActivityEvent | null>(null)
   const [attempt, setAttempt] = useState(0)
   const generation = useRef(0)
+  const loadCount = useCallback(() => countActivityEvents(workspaceId, search), [workspaceId, search])
+  const count = useRecordCount(loadCount, allowed, attempt)
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -63,7 +76,6 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
       setEvents([])
       setHasMore(false)
       setCursor(null)
-      setTotalCount(0)
       setSelected(null)
       try {
         const page = await getActivityEvents(workspaceId, search, pagination.cursors[pageIndex])
@@ -71,7 +83,6 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
         setEvents(page.events)
         setHasMore(page.has_more)
         setCursor(page.next_cursor)
-        setTotalCount(page.total_count)
       } catch (cause) {
         if (generation.current === current) setError(cause instanceof Error ? cause.message : 'Unable to load activity.')
       } finally {
@@ -108,11 +119,17 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
               <Button variant="outline" onClick={() => setAttempt(value => value + 1)}>Try again</Button>
             </div>
           )}
+          {count.error && (
+            <div className="mb-4 space-y-2">
+              <p role="alert" className="text-sm text-destructive">Unable to load the total: {count.error}</p>
+              <Button variant="outline" onClick={count.refresh}>Retry count</Button>
+            </div>
+          )}
           <div className="overflow-hidden rounded-lg border bg-card">
             {events.length > 0 && (
               <div className="overflow-x-auto">
-                <table aria-label="Workspace activity" className="w-full min-w-[36rem] table-fixed text-left text-sm">
-                  <colgroup><col className="w-40" /><col /><col className="w-44" /></colgroup>
+                <table aria-label="Workspace activity" className="w-full min-w-[44rem] table-fixed text-left text-sm">
+                  <colgroup><col className="w-52" /><col /><col className="w-44" /></colgroup>
                   <tbody className="divide-y">
                     {events.map(event => (
                       <tr
@@ -154,7 +171,7 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
             )}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
               <p role="status" className="text-xs text-muted-foreground">
-                {loading ? 'Loading events...' : error ? 'Activity unavailable.' : `Showing ${events.length ? pageIndex * activityPageSize + 1 : 0} to ${events.length ? pageIndex * activityPageSize + events.length : 0} of ${totalCount} events`}
+                {loading ? 'Loading events...' : error ? 'Activity unavailable.' : `Showing ${events.length ? pageIndex * activityPageSize + 1 : 0} to ${events.length ? pageIndex * activityPageSize + events.length : 0}${count.total === null ? '' : ` of ${count.total}`} events`}
               </p>
               <nav aria-label="Activity pagination" className="flex gap-2">
                 <Button variant="outline" disabled={loading || pageIndex === 0} onClick={() => setPagination(previous => ({ ...previous, index: previous.index - 1 }))}>Previous</Button>

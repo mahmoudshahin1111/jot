@@ -24,7 +24,7 @@ export function RoleMembers({
   return (
     <div role="tabpanel" id="members-panel" aria-labelledby="members-tab">
       <div className="mb-4 grid min-w-0 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <p className="min-w-0 truncate text-sm text-muted-foreground" title={`${members.total} people have the ${roleName} role`}>{members.total} people have the {roleName} role</p>
+        <p className="min-w-0 truncate text-sm text-muted-foreground" title={`${members.total ?? '...'} people have the ${roleName} role`}>{members.total ?? '...'} people have the {roleName} role</p>
         <Button variant="outline" disabled={!canAdd || members.loading || members.removing !== null} onClick={() => setAdding(true)}>
           <Plus aria-hidden="true" /> Add members
         </Button>
@@ -45,6 +45,10 @@ export function RoleMembers({
       {members.notice && <p role="status" className="mb-3 text-sm">{members.notice}</p>}
       {addedNotice && <p role="status" className="mb-3 text-sm">{addedNotice}</p>}
       {members.actionError && <p role="alert" className="mb-3 text-sm text-destructive">{members.actionError}</p>}
+      {members.countError && <div className="mb-3 space-y-2">
+        <p role="alert" className="text-sm text-destructive">Unable to load the total: {members.countError}</p>
+        <Button variant="outline" onClick={members.retryCount}>Retry count</Button>
+      </div>}
       <InfiniteScroll
         className="max-h-105 overflow-y-auto"
         aria-label="Role members"
@@ -80,7 +84,7 @@ export function RoleMembers({
             </li>
           ))}
         </ul>
-        {!members.loading && !members.error && members.total === 0 && (
+        {!members.loading && !members.error && members.members.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">No members assigned to this role.</p>
         )}
         {members.loading && <p role="status" className="py-4 text-sm text-muted-foreground">Loading members...</p>}

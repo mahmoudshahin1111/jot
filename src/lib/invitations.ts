@@ -22,6 +22,12 @@ export async function getMyInvitations() {
   return z.array(invitationSchema).parse(data)
 }
 
+export async function countMyInvitations() {
+  const { data, error } = await supabase.rpc('count_my_workspace_invitations')
+  if (error) throw error
+  return z.number().int().nonnegative().parse(data)
+}
+
 export async function inviteWorkspaceUser(workspaceId: string, roleId: string, email: string) {
   const { data, error } = await supabase.functions.invoke('invite-workspace-user', {
     body: { workspaceId, roleId, email: inviteEmailSchema.parse(email) },
@@ -60,5 +66,13 @@ export async function getWorkspaceUsers(workspaceId: string, search: string, aft
     target_workspace_id: workspaceId, search_term: search, after_user_id: after ?? null,
   })
   if (error) throw error
-  return z.object({ members: z.array(workspaceUserSchema), total: z.number() }).parse(data)
+  return z.object({ members: z.array(workspaceUserSchema) }).parse(data)
+}
+
+export async function countWorkspaceUsers(workspaceId: string, search: string) {
+  const { data, error } = await supabase.rpc('count_workspace_users', {
+    target_workspace_id: workspaceId, search_term: search,
+  })
+  if (error) throw error
+  return z.number().int().nonnegative().parse(data)
 }

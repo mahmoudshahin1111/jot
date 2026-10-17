@@ -11,7 +11,7 @@
     "test:invitations:browser": "node --test tests/invitation-browser.mjs",
     "test:roles:browser": "node --test tests/roles-browser.mjs",
     "test:tasks:browser": "node --test tests/tasks-browser.mjs",
-    "test:rpc": "node --test tests/rpc-access.test.mjs tests/activity-rpc.test.mjs",
+    "test:rpc": "node --test tests/rpc-access.test.mjs tests/activity-rpc.test.mjs tests/pagination-counts.test.mjs",
     "test:activity:browser": "node --test tests/activity-browser.mjs",
     "preview": "vite preview"
   },

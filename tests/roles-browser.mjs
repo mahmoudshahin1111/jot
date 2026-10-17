@@ -103,6 +103,10 @@ test('Roles list loads the next page when its wrapper scrolls to the bottom', as
     }
     const context = await browser.newContext()
     const page = await context.newPage()
+    const counts = []
+    page.on('request', request => {
+      if (request.method() === 'POST' && request.url().endsWith('/rpc/count_workspace_roles')) counts.push(request)
+    })
     await page.goto('http://localhost:5173/login')
     await page.getByLabel('Email', { exact: true }).fill(owner.email)
     await page.getByLabel('Password', { exact: true }).fill(owner.password)
@@ -112,11 +116,15 @@ test('Roles list loads the next page when its wrapper scrolls to the bottom', as
     const roles = page.getByLabel('Workspace roles', { exact: true })
     const rows = roles.locator('li')
     await rows.nth(9).waitFor()
+    await page.getByText('18 roles in this workspace', { exact: true }).waitFor()
+    const initialCounts = counts.length
+    assert.ok(initialCounts > 0)
     assert.equal(await rows.count(), 10, 'Only the first page is initially loaded')
     await roles.evaluate(element => { element.scrollTop = element.scrollHeight })
     await rows.nth(17).waitFor()
     assert.equal(await rows.count(), 18, 'Scrolling loads the remaining roles without clicking Load more')
     assert.equal(await roles.getByRole('button', { name: 'Load more roles', exact: true }).count(), 0)
+    assert.equal(counts.length, initialCounts, 'Loading another roles page does not recount')
     await context.close()
   } finally {
     await browser.close()

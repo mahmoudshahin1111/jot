@@ -1,12 +1,13 @@
 import { ChevronDown } from 'lucide-react'
 import { Card } from '@/components/ui/card'
-import { taskStatuses, taskStatusLabels, type Task, type TaskStatus } from '@/lib/tasks'
+import { taskStatuses, taskStatusLabels, type Task, type TaskCounts, type TaskStatus } from '@/lib/tasks'
 
 import { StatusPill } from './status-pill'
 import { useTaskDrag } from '../hooks/use-task-drag'
 
-export function TaskTable({ tasks, statuses = taskStatuses, searching = false, collapsed, onToggle, selectedId, canUpdate, busy, onSelect, onComplete, onMove }: {
+export function TaskTable({ tasks, counts, statuses = taskStatuses, searching = false, collapsed, onToggle, selectedId, canUpdate, busy, onSelect, onComplete, onMove }: {
   tasks: Task[]
+  counts: TaskCounts | null
   statuses?: readonly TaskStatus[]
   searching?: boolean
   collapsed: Partial<Record<TaskStatus, boolean>>
@@ -45,13 +46,13 @@ export function TaskTable({ tasks, statuses = taskStatuses, searching = false, c
                   <button
                     type="button"
                     aria-expanded={!isCollapsed}
-                    aria-label={`${taskStatusLabels[status]} (${group.length})`}
+                    aria-label={`${taskStatusLabels[status]} (${counts?.[status] ?? '...'})`}
                     onClick={() => onToggle(status)}
                     className="flex items-center gap-2"
                   >
                     <ChevronDown className={`size-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} aria-hidden="true" />
                     <StatusPill status={status} />
-                    <span className="text-muted-foreground">{group.length}</span>
+                    <span className="text-muted-foreground">{counts?.[status] ?? '...'}</span>
                   </button>
                 </td>
               </tr>

@@ -92,6 +92,55 @@ raise a not-found error rather than returning a successful empty mutation.
 Task updates cannot change workspace membership or any task's workspace UUID.
 Access revocation is checked again on each RPC call.
 
+### Separate pagination totals
+
+Apply `20261017010000_separate_pagination_counts.sql` together with the matching
+frontend. List responses no longer contain `total` or `total_count`. Cursor
+pagination and bounded lookahead remain unchanged; the activity `has_more`
+check counts only its bounded page, not the full result set. Per-role
+`member_count` values remain row details, not pagination totals.
+
+| Count RPC | Scope and filters | Access |
+| --- | --- | --- |
+| `count_workspace_activity_events` | Workspace; optional description search | `activity.read` |
+| `count_workspace_roles` | Shared system and workspace custom roles; optional name search | `roles.read` |
+| `count_workspace_role_members` | Workspace and selected role | `roles.read`; validates role scope |
+| `count_workspace_users` | Workspace; optional name/email search | `roles.read` |
+| `count_workspace_tasks` | Workspace; optional title/description search and `task_status` | `tasks.read` |
+| `count_workspace_task_summary` | Workspace; optional title/description search; returns all and per-status totals in one scan | `tasks.read` |
+| `count_my_workspaces` | Caller-accessible workspaces; optional name search | Signed-in caller |
+| `count_my_workspace_invitations` | Caller's pending, unexpired invitations across workspaces | Signed-in sender |
+
+Counts return a nonnegative integer and never accept pagination cursors. Each
+uses the same authorization and visibility rules as its listing. Searches are
+case-insensitive literal substring matches, not SQL wildcard patterns.
+
+Activity, role, role-member and user totals load independently on initialization
+and filter changes. Page navigation does not request another total. Creating,
+duplicating or deleting a role refreshes its list total; member assignment and
+removal refresh the affected member total. Users also refresh on explicit
+refresh, window focus and invitation broadcasts (which can signal acceptance).
+Count failures have their own error and retry control without blocking records;
+unknown/loading totals are not displayed as zero. Stale count responses are
+discarded when the query changes or the component unmounts.
+
+Tasks are currently loaded completely for the board and client-side filtering,
+but all displayed task totals come from `count_workspace_task_summary`, never
+array lengths. The header and status filters share an unfiltered summary;
+list/board groups use a separate debounced search summary when searching.
+Status selection uses that summary's matching status, and switching views or
+collapsing groups does not recount. Creation, deletion and persisted status
+changes refresh summaries; title/description saves refresh an active search
+summary. Count failures do not block tasks or editing. Apply
+`20261017011000_task_count_summary.sql` before deploying this task frontend.
+The invitation badge and cap indicator use their separate count RPC and refresh
+on invitation actions, broadcasts, focus and explicit refresh, not user search
+or pagination. Workspace choices remain a complete collection with no total
+display; their standalone count RPC is also available.
+Counts are exact but not cached across mounts and can become stale after other
+clients write; there is no per-page recount or claim of snapshot consistency
+between separate list and count requests.
+
 Default privileges for the `postgres` migration owner no longer grant clients
 access to future tables, sequences, or functions. New RPCs must explicitly grant
 EXECUTE only to the intended caller roles. PostgreSQL's global function default
@@ -203,21 +252,24 @@ The table has no client grants; clients only use RPCs:
 
 - `list_workspace_activity_events(workspace, page_size, before_created_at,
   before_id, search_term)` requires `activity.read`, searches descriptions
-  case-insensitively and returns `{events, total_count, has_more, next_cursor}`
-  using keyset pagination. `total_count` covers all matching events in the
-  authorized workspace, not just those after the cursor. Page sizes are 1-100
+  case-insensitively and returns `{events, has_more, next_cursor}`
+  using keyset pagination. `count_workspace_activity_events` separately counts
+  all matching events in the authorized workspace. Page sizes are 1-100
   (default 20); partial cursors and invalid page sizes are rejected.
 - `get_workspace_role(workspace, role)` requires `roles.read` and is used to
   open a role linked from an activity event.
 
 Events are only logged for authenticated users, not service-role changes.
 
-Apply `20261016220000_activity_pagination_count.sql` before deploying the updated
+Apply `20261017010000_separate_pagination_counts.sql` before deploying the updated
 Activity frontend. The page shows 20 events at a time with always-visible
 Previous/Next controls and a matching-event count. Search resets to the first
 page. Its headerless table contains event type, description with actor, and
 performed date; clicking any cell or pressing Enter/Space on a focused row
 opens the event details. Pagination and search close the selected event.
+Each supported event type has its own badge color in light and dark themes.
+The event-type column is 13rem wide and badges stay on one line; narrow screens
+scroll inside the table container.
 
 ### Workspace email invitations
 
