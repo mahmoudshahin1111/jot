@@ -1,11 +1,12 @@
 import { Link, NavLink, Outlet, useParams } from 'react-router-dom'
-import { ArrowLeft, LogOut } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WorkspaceNavigationContext, useWorkspaceShell } from '@/hooks/use-workspace-shell'
 import logo from '@/assets/icons/jot-64x64.png'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { useWorkspaceNavigation } from '@/hooks/use-workspace-navigation'
 import { WorkspaceAccessContext } from '@/hooks/use-workspace-access'
+import { UserMenu } from '@/components/user-menu'
 
 export function WorkspaceLayout() {
   const { workspaceId } = useParams()
@@ -79,14 +80,7 @@ function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
               <div className="min-w-0">
                 <Breadcrumb items={breadcrumbs} onNavigate={shell.confirmNavigation} />
               </div>
-              <Button
-                variant="outline"
-                disabled={shell.loggingOut}
-                onClick={() => { void shell.logout() }}
-              >
-                <LogOut aria-hidden="true" />
-                {shell.loggingOut ? 'Logging out...' : 'Log out'}
-              </Button>
+              <UserMenu onNavigate={shell.confirmNavigation} onLogout={shell.logout} loggingOut={shell.loggingOut} />
             </div>
             {shell.logoutError && <p role="alert" className="mx-auto max-w-7xl px-5 pb-4 text-sm text-destructive sm:px-6">{shell.logoutError}</p>}
           </header>
