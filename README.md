@@ -1,10 +1,15 @@
 # Jot
 
+**Start here:** [Project overview and wiki](./docs/wiki/README.md) - what Jot is,
+key concepts, and links to the user guides.
+
 A workspace-based task application built with React, TypeScript, Vite, and
 Supabase.
 
 ## Documentation
 
+- [Project wiki](./docs/wiki/README.md) - getting started, tasks, roles and
+  permissions, activity, and frequently asked questions.
 - [Development principles](./docs/development_principles.md) - shared guidance
   for making development decisions.
 - [Local development](./docs/README.md) - prerequisites, setup, and running locally.
