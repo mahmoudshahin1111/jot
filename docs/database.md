@@ -203,12 +203,21 @@ The table has no client grants; clients only use RPCs:
 
 - `list_workspace_activity_events(workspace, page_size, before_created_at,
   before_id, search_term)` requires `activity.read`, searches descriptions
-  case-insensitively and returns `{events, has_more, next_cursor}` using keyset
-  pagination.
+  case-insensitively and returns `{events, total_count, has_more, next_cursor}`
+  using keyset pagination. `total_count` covers all matching events in the
+  authorized workspace, not just those after the cursor. Page sizes are 1-100
+  (default 20); partial cursors and invalid page sizes are rejected.
 - `get_workspace_role(workspace, role)` requires `roles.read` and is used to
   open a role linked from an activity event.
 
 Events are only logged for authenticated users, not service-role changes.
+
+Apply `20261016220000_activity_pagination_count.sql` before deploying the updated
+Activity frontend. The page shows 20 events at a time with always-visible
+Previous/Next controls and a matching-event count. Search resets to the first
+page. Its headerless table contains event type, description with actor, and
+performed date; clicking any cell or pressing Enter/Space on a focused row
+opens the event details. Pagination and search close the selected event.
 
 ### Workspace email invitations
 

@@ -87,7 +87,7 @@ Both workspace pages require a session, and loading errors offer a retry
 instead of being treated as an empty workspace list.
 Opening `/workspaces/:workspaceId` redirects to its Tasks page at
 `/workspaces/:workspaceId/tasks`. The shared sidebar has an Overview group
-with Tasks, Dashboard, and Activity (`/workspaces/:workspaceId/activity`, also empty),
+with Tasks, Dashboard, and Activity (`/workspaces/:workspaceId/activity`),
 and a Settings group with Roles and permissions and Users. All workspaces remains
 available at the bottom. A shared
 [Breadcrumb component](../src/components/breadcrumb.tsx) shows the current
@@ -97,9 +97,9 @@ and breadcrumb paths come from the
 [workspace navigation hook](../src/hooks/use-workspace-navigation.ts).
 Sidebar pages are filtered by the authenticated user's current workspace
 permissions. Roles and permissions and Users require `roles.read`; the Settings
-group is hidden when neither page is available. Dashboard and Activity remain
-available to any user with workspace access, since they have no separate page
-permissions. Sidebar visibility updates when the workspace access check receives
+group is hidden when neither page is available. Dashboard remains available to
+any user with workspace access. Activity requires `activity.read`, granted to
+Owners by default. Sidebar visibility updates when the workspace access check receives
 role or permission changes. Hiding links does not replace direct-route, RPC,
 or database authorization.
 Direct links verify the session and workspace access; missing access
@@ -369,6 +369,7 @@ for generating components, while the CSS variables define the custom palette.
 ```powershell
 npm run build
 npm run lint
+npm run test:rpc
 $tests = Get-ChildItem supabase\tests\*.test.sql | ForEach-Object { $_.FullName }
 npx supabase test db $tests
 ```
@@ -380,6 +381,23 @@ npx supabase migration up --local
 ```
 
 Database tests require local Supabase to be running and roll back their test data.
+
+Activity uses a headerless three-column table (event type, description and actor,
+performed date), with event details available by clicking a row or using
+Enter/Space. Previous/Next controls page through 20 events at a time, including
+filtered counts. See [Workspace activity](./database.md#workspace-activity) for
+the required migration and RPC contract.
+
+With local Supabase and Vite running, run the Activity browser regression:
+
+```powershell
+npm run test:activity:browser
+```
+
+Like the other browser suites, this requires Playwright and Microsoft Edge on
+Windows (Chromium elsewhere). If Playwright is installed outside the project,
+set `PLAYWRIGHT_MODULE` to its entry file. The test creates and cleans up its own
+users and workspaces.
 
 To preview the production frontend build locally:
 

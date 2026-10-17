@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -7,9 +7,20 @@ import { Input } from '@/components/ui/input'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { PERMISSIONS } from '@/lib/permissions'
 import {
-  activityEventLabel, activityItemPath, getActivityEvents,
+  activityEventLabel, activityItemPath, activityPageSize, getActivityEvents,
   type ActivityCursor, type ActivityEvent,
 } from '@/lib/activity'
+
+function EventTypeBadge({ eventType }: { eventType: string }) {
+  const color = eventType.endsWith('.created') || eventType.endsWith('.added') || eventType.endsWith('.accepted')
+    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+    : eventType.endsWith('.updated') || eventType.endsWith('.role_changed')
+      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+      : eventType.endsWith('.deleted') || eventType.endsWith('.removed') || eventType.endsWith('.canceled')
+        ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+        : 'border-transparent bg-muted text-foreground'
+  return <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${color}`}>{activityEventLabel(eventType)}</span>
+}
 
 export function ActivityPage() {
   const { workspaceId } = useParams()
@@ -21,10 +32,14 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
   const { hasPermission } = useWorkspacePermissions()
   const allowed = hasPermission(PERMISSIONS.activity.read)
   const [filter, setFilter] = useState('')
-  const [search, setSearch] = useState('')
+  const [pagination, setPagination] = useState<{ search: string, cursors: (ActivityCursor | null)[], index: number }>({
+    search: '', cursors: [null], index: 0,
+  })
+  const { search, index: pageIndex } = pagination
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [cursor, setCursor] = useState<ActivityCursor | null>(null)
   const [hasMore, setHasMore] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ActivityEvent | null>(null)
@@ -32,7 +47,10 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
   const generation = useRef(0)
 
   useEffect(() => {
-    const timeout = setTimeout(() => setSearch(filter.trim()), 250)
+    const timeout = setTimeout(() => {
+      const nextSearch = filter.trim()
+      setPagination(previous => previous.search === nextSearch ? previous : { search: nextSearch, cursors: [null], index: 0 })
+    }, 250)
     return () => clearTimeout(timeout)
   }, [filter])
 
@@ -45,12 +63,15 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
       setEvents([])
       setHasMore(false)
       setCursor(null)
+      setTotalCount(0)
+      setSelected(null)
       try {
-        const page = await getActivityEvents(workspaceId, search)
+        const page = await getActivityEvents(workspaceId, search, pagination.cursors[pageIndex])
         if (generation.current !== current) return
         setEvents(page.events)
         setHasMore(page.has_more)
         setCursor(page.next_cursor)
+        setTotalCount(page.total_count)
       } catch (cause) {
         if (generation.current === current) setError(cause instanceof Error ? cause.message : 'Unable to load activity.')
       } finally {
@@ -59,24 +80,7 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
     }
     void load()
     return () => { generation.current = current + 1 }
-  }, [allowed, attempt, search, workspaceId])
-
-  const loadMore = useCallback(async () => {
-    if (loading || !hasMore || !cursor) return
-    const current = generation.current
-    setLoading(true)
-    try {
-      const page = await getActivityEvents(workspaceId, search, cursor)
-      if (generation.current !== current) return
-      setEvents(previous => [...previous, ...page.events])
-      setHasMore(page.has_more)
-      setCursor(page.next_cursor)
-    } catch (cause) {
-      if (generation.current === current) setError(cause instanceof Error ? cause.message : 'Unable to load activity.')
-    } finally {
-      if (generation.current === current) setLoading(false)
-    }
-  }, [cursor, hasMore, loading, search, workspaceId])
+  }, [allowed, attempt, search, workspaceId, pagination, pageIndex])
 
   if (!allowed) {
     return <main className="p-6"><p role="alert">You do not have permission to view workspace activity.</p></main>
@@ -87,11 +91,11 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
   return (
     <main className="mx-auto max-w-7xl px-5 py-6 sm:px-6" aria-label="Activity">
       <h1 className="text-3xl font-semibold tracking-tight">Activity</h1>
-      <p className="mt-2 text-sm text-muted-foreground">A history of the changes made in this workspace.</p>
+      <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Every change made in this workspace, newest first. Select an event to see who did it and what it affected.</p>
       <Input
         className="mt-5 max-w-md"
         type="search"
-        placeholder="Search activity"
+        placeholder="Search events by description"
         aria-label="Search activity"
         value={filter}
         onChange={event => setFilter(event.target.value)}
@@ -104,32 +108,64 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
               <Button variant="outline" onClick={() => setAttempt(value => value + 1)}>Try again</Button>
             </div>
           )}
-          {events.length > 0 && (
-            <ul aria-label="Workspace activity" className="divide-y rounded-lg border">
-              {events.map(event => (
-                <li key={event.id}>
-                  <button
-                    type="button"
-                    aria-pressed={selected?.id === event.id}
-                    onClick={() => setSelected(event)}
-                    className={`flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-muted ${selected?.id === event.id ? 'bg-accent' : ''}`}
-                  >
-                    <span className="text-xs font-semibold text-primary-text">{activityEventLabel(event.event_type)}</span>
-                    <span className="text-sm">{event.description}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {loading && <p role="status" className="py-4 text-sm text-muted-foreground">Loading activity...</p>}
-          {!loading && !error && events.length === 0 && (
-            <p className="py-4 text-sm text-muted-foreground">
-              {search ? 'No activity matches your search.' : 'No activity yet.'}
-            </p>
-          )}
-          {hasMore && !loading && (
-            <Button variant="outline" className="mt-4" onClick={() => { void loadMore() }}>Load more activity</Button>
-          )}
+          <div className="overflow-hidden rounded-lg border bg-card">
+            {events.length > 0 && (
+              <div className="overflow-x-auto">
+                <table aria-label="Workspace activity" className="w-full min-w-[36rem] table-fixed text-left text-sm">
+                  <colgroup><col className="w-40" /><col /><col className="w-44" /></colgroup>
+                  <tbody className="divide-y">
+                    {events.map(event => (
+                      <tr
+                        key={event.id}
+                        tabIndex={0}
+                        aria-label={`${activityEventLabel(event.event_type)}: ${event.description}, by ${event.actor_name}`}
+                        aria-selected={selected?.id === event.id}
+                        onClick={() => setSelected(event)}
+                        onKeyDown={key => {
+                          if (key.key === 'Enter' || key.key === ' ') {
+                            key.preventDefault()
+                            setSelected(event)
+                          }
+                        }}
+                        className={`cursor-pointer hover:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${selected?.id === event.id ? 'bg-accent' : ''}`}
+                      >
+                        <td className="px-4 py-3"><EventTypeBadge eventType={event.event_type} /></td>
+                        <td className="break-words px-4 py-3">
+                          <div className="font-medium">{event.description}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">by {event.actor_name}</div>
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">
+                          <time dateTime={event.created_at} title={new Date(event.created_at).toLocaleString()}>
+                            {new Date(event.created_at).toLocaleString(undefined, {
+                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                            })}
+                          </time>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {!loading && !error && events.length === 0 && (
+              <p className="px-4 py-4 text-sm text-muted-foreground">
+                {search ? 'No activity matches your search.' : 'No activity yet.'}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+              <p role="status" className="text-xs text-muted-foreground">
+                {loading ? 'Loading events...' : error ? 'Activity unavailable.' : `Showing ${events.length ? pageIndex * activityPageSize + 1 : 0} to ${events.length ? pageIndex * activityPageSize + events.length : 0} of ${totalCount} events`}
+              </p>
+              <nav aria-label="Activity pagination" className="flex gap-2">
+                <Button variant="outline" disabled={loading || pageIndex === 0} onClick={() => setPagination(previous => ({ ...previous, index: previous.index - 1 }))}>Previous</Button>
+                <Button variant="outline" disabled={loading || !!error || !hasMore || !cursor} onClick={() => {
+                  if (cursor) setPagination(previous => ({
+                    ...previous, cursors: [...previous.cursors.slice(0, previous.index + 1), cursor], index: previous.index + 1,
+                  }))
+                }}>Next</Button>
+              </nav>
+            </div>
+          </div>
         </div>
         {selected && (
           <Card className="min-w-0 gap-4 p-5" role="region" aria-labelledby="activity-details-heading">
@@ -142,7 +178,10 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
             <dl className="space-y-3 text-sm">
               <div>
                 <dt className="text-xs text-muted-foreground">Event type</dt>
-                <dd>{activityEventLabel(selected.event_type)}</dd>
+                <dd className="mt-1 flex flex-wrap items-center gap-2">
+                  <EventTypeBadge eventType={selected.event_type} />
+                  <span className="font-mono text-xs text-muted-foreground">{selected.event_type}</span>
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Description</dt>
@@ -153,8 +192,8 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
                 <dd>{selected.actor_name}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Time</dt>
-                <dd>{new Date(selected.created_at).toLocaleString()}</dd>
+                <dt className="text-xs text-muted-foreground">When</dt>
+                <dd><time dateTime={selected.created_at}>{new Date(selected.created_at).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'long' })}</time></dd>
               </div>
               {selected.affected_item_type && selected.affected_item_name && (
                 <div>
@@ -164,6 +203,7 @@ function WorkspaceActivity({ workspaceId }: { workspaceId: string }) {
                       ? <Link to={itemPath} className="font-medium text-primary-text underline">{selected.affected_item_name}</Link>
                       : selected.affected_item_name}
                   </dd>
+                  <dd className="mt-1 break-all font-mono text-xs text-muted-foreground">id: {selected.affected_item_id}</dd>
                 </div>
               )}
             </dl>

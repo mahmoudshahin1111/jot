@@ -10,6 +10,7 @@ from unnest(array['workspace', 'other_workspace', 'owner', 'viewer', 'outsider']
 create function pg_temp.f(n text) returns uuid language sql as $$
   select id from activity_fixture where name = n;
 $$;
+grant execute on function pg_temp.f(text) to authenticated;
 insert into auth.users (id) values (pg_temp.f('owner')), (pg_temp.f('viewer')), (pg_temp.f('outsider'));
 insert into public.workspaces (id, name) values
   (pg_temp.f('workspace'), 'Activity test'), (pg_temp.f('other_workspace'), 'Other workspace');
@@ -29,7 +30,7 @@ select is(
 select set_config('request.jwt.claim.sub', pg_temp.f('owner')::text, true);
 set local role authenticated;
 insert into activity_fixture values ('custom', (public.create_workspace_role(pg_temp.f('workspace'), 'Auditors')->>'id')::uuid);
-insert into public.tasks (workspace_id, title) values (pg_temp.f('workspace'), 'Write the release notes');
+insert into activity_fixture values ('task', (public.create_workspace_task(pg_temp.f('workspace'), 'Write the release notes')->>'id')::uuid);
 
 select is(
   jsonb_array_length(public.list_workspace_activity_events(pg_temp.f('workspace'))->'events'),
@@ -59,6 +60,14 @@ select is(
   'true', 'Pagination reports more events'
 );
 select is(
+  public.list_workspace_activity_events(pg_temp.f('workspace'), 1)->>'total_count',
+  '2', 'Total counts all matching events, not only the page'
+);
+select is(
+  public.list_workspace_activity_events(pg_temp.f('workspace'), 1, null, null, 'RELEASE')->>'total_count',
+  '1', 'Total count respects the search'
+);
+select is(
   jsonb_array_length(public.list_workspace_activity_events(
     pg_temp.f('workspace'), 1,
     (public.list_workspace_activity_events(pg_temp.f('workspace'), 1)->'next_cursor'->>'created_at')::timestamptz,
@@ -67,7 +76,7 @@ select is(
   1, 'Cursor returns the next page'
 );
 
-delete from public.tasks where workspace_id = pg_temp.f('workspace');
+select public.delete_workspace_task(pg_temp.f('workspace'), pg_temp.f('task'));
 select is(
   (select count(*)::integer from jsonb_array_elements(public.list_workspace_activity_events(pg_temp.f('workspace'))->'events') e
    where e->>'event_type' = 'task.created' and e->>'affected_item_name' = 'Write the release notes'),

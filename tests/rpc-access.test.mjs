@@ -8,7 +8,7 @@ test('table CRUD is denied over the API even for workspace owners', async () => 
   try {
     const owner = await f.user('rpc-owner')
     await f.workspace(owner)
-    const tables = ['workspaces', 'workspace_users', 'roles', 'permissions', 'role_permissions', 'tasks', 'workspace_invitations']
+    const tables = ['workspaces', 'workspace_users', 'roles', 'permissions', 'role_permissions', 'tasks', 'workspace_invitations', 'workspace_activity_events']
     for (const client of [anonymous(), owner.client]) {
       for (const table of tables) {
         const column = table === 'workspace_users' ? 'workspace_id' : table === 'role_permissions' ? 'role_id' : 'id'

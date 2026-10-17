@@ -22,6 +22,7 @@ const activityPageSchema = z.object({
   events: z.array(activityEventSchema),
   has_more: z.boolean(),
   next_cursor: activityCursorSchema.nullable(),
+  total_count: z.number().int().nonnegative(),
 })
 
 export type ActivityEvent = z.infer<typeof activityEventSchema>
