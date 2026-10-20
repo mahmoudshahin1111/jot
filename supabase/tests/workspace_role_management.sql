@@ -89,7 +89,8 @@ begin
 
   perform public.assign_workspace_role_member(f.workspace_id, created_id, f.member_id, f.editor_role_id);
   page := public.list_workspace_role_members(f.workspace_id, created_id);
-  assert page->>'total' = '1' and page->'members'->0->>'user_id' = f.member_id::text,
+  assert public.count_workspace_role_members(f.workspace_id, created_id) = 1
+    and page->'members'->0->>'user_id' = f.member_id::text,
     'Assigned members and counts must persist';
   assert jsonb_array_length(public.list_workspace_role_candidates(f.workspace_id, created_id)) = 1,
     'Already assigned members must not be candidates';
@@ -142,7 +143,7 @@ begin
   end;
 
   perform public.remove_workspace_role_member(f.workspace_id, created_id, f.member_id);
-  assert public.list_workspace_role_members(f.workspace_id, created_id)->>'total' = '0',
+  assert public.count_workspace_role_members(f.workspace_id, created_id) = 0,
     'Removing a member must revoke their membership';
   perform public.delete_workspace_role(f.workspace_id, created_id);
   assert not exists (select 1 from public.roles where id = created_id), 'Empty role deletion must persist';

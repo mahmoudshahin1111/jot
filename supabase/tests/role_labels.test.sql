@@ -38,7 +38,7 @@ select is(
   'Support specialist', 'Filtering matches the display name rather than the machine key'
 );
 select is(
-  (public.list_workspace_roles((select workspace_id from label_fixture), 10, null, null, 'internal')->>'total')::integer,
+  public.count_workspace_roles((select workspace_id from label_fixture), 'internal')::integer,
   0, 'Hidden machine keys do not match the display filter'
 );
 update label_fixture set copy_id = public.duplicate_workspace_role(workspace_id, role_id);
@@ -51,8 +51,8 @@ select is(
   'custom.internal (copy)', 'Duplicate machine key remains separate'
 );
 select is(
-  (public.list_workspace_role_members((select workspace_id from label_fixture),
-    (select copy_id from label_fixture))->>'total')::integer,
+  public.count_workspace_role_members((select workspace_id from label_fixture),
+    (select copy_id from label_fixture))::integer,
   0, 'Named duplicate has no members'
 );
 select ok(

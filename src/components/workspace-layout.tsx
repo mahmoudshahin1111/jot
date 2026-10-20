@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WorkspaceNavigationContext, useWorkspaceShell } from '@/hooks/use-workspace-shell'
@@ -17,6 +17,8 @@ export function WorkspaceLayout() {
 function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
   const shell = useWorkspaceShell(workspaceId)
   const { groups, breadcrumbs } = useWorkspaceNavigation(workspaceId, shell.hasPermission)
+  const { pathname } = useLocation()
+  const isProfilePage = pathname === `/workspaces/${workspaceId}/profile`
 
   if (shell.error) {
     return (
@@ -78,7 +80,9 @@ function WorkspaceShell({ workspaceId }: { workspaceId: string }) {
           <header className="border-b">
             <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-6">
               <div className="min-w-0">
-                <Breadcrumb items={breadcrumbs} onNavigate={shell.confirmNavigation} />
+                {isProfilePage
+                  ? <span className="truncate text-sm text-muted-foreground">{shell.workspace.name}</span>
+                  : <Breadcrumb items={breadcrumbs} onNavigate={shell.confirmNavigation} />}
               </div>
               <UserMenu onNavigate={shell.confirmNavigation} onLogout={shell.logout} loggingOut={shell.loggingOut} />
             </div>

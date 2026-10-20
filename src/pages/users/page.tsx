@@ -4,11 +4,13 @@ import { Mail, Plus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { UserAvatar } from '@/components/user-avatar'
 import { InviteUserDialog } from './components/invite-user-dialog'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useWorkspaceAccess } from '@/hooks/use-workspace-access'
+import { useRecordCount } from '@/hooks/use-record-count'
 import { InfiniteScroll } from '@/components/infinite-scroll'
-import { cancelInvitation, getMyInvitations, getWorkspaceUsers, invitationLimit, type WorkspaceInvitation, type WorkspaceUser } from '@/lib/invitations'
+import { cancelInvitation, countMyInvitations, countWorkspaceUsers, getMyInvitations, getWorkspaceUsers, invitationLimit, type WorkspaceInvitation, type WorkspaceUser } from '@/lib/invitations'
 import { PERMISSIONS } from '@/lib/permissions'
 import { removeRoleMember, roleErrorMessage, rolePageSize } from '@/lib/roles'
 import { supabase } from '@/lib/supabaseClient'
@@ -25,7 +27,6 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
   const [section, setSection] = useState<'users' | 'invitations'>('users')
   const [members, setMembers] = useState<WorkspaceUser[]>([])
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([])
-  const [total, setTotal] = useState(0)
   const [filter, setFilter] = useState('')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -36,6 +37,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
   const [busy, setBusy] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [revision, setRevision] = useState(0)
+  const [countRevision, setCountRevision] = useState(0)
   const [connectionError, setConnectionError] = useState<string | null>(null)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
   const generation = useRef(0)
@@ -43,6 +45,13 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
   const canRead = hasPermission(PERMISSIONS.roles.read)
   const canInvite = hasPermission(PERMISSIONS.roles.addMembers)
   const canRemove = hasPermission(PERMISSIONS.roles.removeMembers)
+  const loadCount = useCallback(() => countWorkspaceUsers(workspaceId, search), [workspaceId, search])
+  const count = useRecordCount(loadCount, canRead, countRevision)
+  const invitationCount = useRecordCount(countMyInvitations, canRead, revision)
+  const refresh = useCallback(() => {
+    setRevision(value => value + 1)
+    setCountRevision(value => value + 1)
+  }, [])
 
   useEffect(() => {
     const timeout = setTimeout(() => setSearch(filter.trim()), 250)
@@ -50,10 +59,9 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
   }, [filter])
 
   useEffect(() => {
-    const refresh = () => setRevision(value => value + 1)
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
-  }, [])
+  }, [refresh])
 
   useEffect(() => {
     if (!canRead) return
@@ -62,7 +70,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
     let timeout: ReturnType<typeof setTimeout> | undefined
     const scheduleRefresh = () => {
       clearTimeout(timeout)
-      timeout = setTimeout(() => { if (active) setRevision(value => value + 1) }, 50)
+      timeout = setTimeout(() => { if (active) refresh() }, 50)
     }
     async function subscribe() {
       try {
@@ -92,7 +100,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
       clearTimeout(timeout)
       if (channel) void supabase.removeChannel(channel)
     }
-  }, [canRead, connectionAttempt])
+  }, [canRead, connectionAttempt, refresh])
 
   useEffect(() => {
     const current = ++generation.current
@@ -104,7 +112,6 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
         const [page, pending] = await Promise.all([getWorkspaceUsers(workspaceId, search), getMyInvitations()])
         if (current !== generation.current) return
         setMembers(page.members.slice(0, rolePageSize))
-        setTotal(page.total)
         setHasMore(page.members.length > rolePageSize)
         setInvitations(pending)
       } catch (cause) {
@@ -146,6 +153,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
       else await cancelInvitation(id)
       setNotice(member ? `${member.name} removed from this workspace.` : 'Invitation removed. You can invite another user.')
       setRevision(value => value + 1)
+      if (member) setCountRevision(value => value + 1)
       await access.checkAccess()
     } catch (cause) {
       setActionError(roleErrorMessage(cause))
@@ -165,7 +173,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
           <h1 className="text-3xl font-semibold tracking-tight">Users</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Manage workspace users and invite people by email, including users from other workspaces.</p>
         </div>
-        <Button disabled={!canInvite || loading || busy || Boolean(error) || invitations.length >= invitationLimit} onClick={() => setInviting(true)}>
+        <Button disabled={!canInvite || loading || busy || Boolean(error) || invitationCount.total === null || invitationCount.total >= invitationLimit} onClick={() => setInviting(true)}>
           <Plus aria-hidden="true" /> Invite user
         </Button>
       </header>
@@ -182,10 +190,10 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
           <div><h2 className="text-xl font-semibold">People</h2><p className="mt-1 text-xs text-muted-foreground">Users and your pending invitations</p></div>
           <nav aria-label="Users sections" className="space-y-1">
             <Button variant="ghost" aria-pressed={section === 'users'} className={`h-auto w-full justify-start rounded-md border px-3 py-3 text-xs ${section === 'users' ? 'border-input bg-accent' : 'border-transparent'}`} onClick={() => setSection('users')}>
-              <Users aria-hidden="true" /> Users <span className="ml-auto">{total}</span>
+              <Users aria-hidden="true" /> Users <span className="ml-auto">{count.total ?? '...'}</span>
             </Button>
             <Button variant="ghost" aria-pressed={section === 'invitations'} className={`h-auto w-full justify-start rounded-md border px-3 py-3 text-xs ${section === 'invitations' ? 'border-input bg-accent' : 'border-transparent'}`} onClick={() => setSection('invitations')}>
-              <Mail aria-hidden="true" /> Invitations <span className="ml-auto">{invitations.length}/{invitationLimit}</span>
+              <Mail aria-hidden="true" /> Invitations <span className="ml-auto">{invitationCount.total ?? '...'}/{invitationLimit}</span>
             </Button>
           </nav>
           <p className="text-xs leading-5 text-muted-foreground">You can have 10 pending invitations across all workspaces. Acceptance, removal, or expiry frees a slot.</p>
@@ -194,12 +202,20 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div><h2 className="text-xl font-semibold">{section === 'users' ? 'Workspace users' : 'Your invitations'}</h2>
               <p className="mt-2 text-xs text-muted-foreground">{section === 'users' ? 'Removing a user revokes access to this workspace only.' : 'Pending invitations you sent across all workspaces. Invitations expire after 7 days.'}</p></div>
-            <Button variant="outline" disabled={loading || busy} onClick={() => setRevision(value => value + 1)}>Refresh</Button>
+            <Button variant="outline" disabled={loading || busy} onClick={refresh}>Refresh</Button>
           </div>
-          {invitations.length >= invitationLimit && <p role="status" className="text-sm text-muted-foreground">You have reached 10 pending invitations. Wait for acceptance or remove an invitation to invite more users.</p>}
+          {invitationCount.total !== null && invitationCount.total >= invitationLimit && <p role="status" className="text-sm text-muted-foreground">You have reached 10 pending invitations. Wait for acceptance or remove an invitation to invite more users.</p>}
           {section === 'users' && <Input aria-label="Filter users" placeholder="Filter users by name or email" value={filter} onChange={event => setFilter(event.target.value)} />}
+          {count.error && <div className="space-y-2">
+            <p role="alert" className="text-sm text-destructive">Unable to load the total: {count.error}</p>
+            <Button variant="outline" onClick={count.refresh}>Retry count</Button>
+          </div>}
+          {invitationCount.error && <div className="space-y-2">
+            <p role="alert" className="text-sm text-destructive">Unable to load the invitation total: {invitationCount.error}</p>
+            <Button variant="outline" onClick={invitationCount.refresh}>Retry invitation count</Button>
+          </div>}
           {loading && <p role="status" className="text-sm text-muted-foreground">Loading users and invitations...</p>}
-          {error ? <div className="space-y-3"><p role="alert" className="text-sm text-destructive">{error}</p><Button variant="outline" onClick={() => setRevision(value => value + 1)}>Try again</Button></div> : (
+          {error ? <div className="space-y-3"><p role="alert" className="text-sm text-destructive">{error}</p><Button variant="outline" onClick={refresh}>Try again</Button></div> : (
             <InfiniteScroll
               className="max-h-105 overflow-y-auto"
               aria-label={section === 'users' ? 'Workspace users' : 'Pending invitations'}
@@ -210,7 +226,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
               <ul className="divide-y border-y">
                 {section === 'users' ? members.map(member => (
                   <li key={member.user_id} className="flex items-center gap-3 py-4">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium" aria-hidden="true">{member.name.slice(0, 2).toUpperCase()}</span>
+                    <UserAvatar text={member.name} decorative />
                     <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium" title={member.name}>{member.name}</p><p className="truncate font-mono text-xs text-muted-foreground" title={member.email}>{member.email}</p><p className="text-xs text-muted-foreground">{member.role_name}</p></div>
                     <Button variant="ghost" disabled={!canRemove || busy || loading} aria-label={`Remove ${member.name} from workspace`} onClick={() => { void remove(member.user_id, member) }}>Remove</Button>
                   </li>

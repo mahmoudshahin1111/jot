@@ -29,7 +29,7 @@ select pg_temp.f('workspace'), pg_temp.f('viewer'), pg_temp.f('custom');
 select set_config('request.jwt.claim.sub', pg_temp.f('owner')::text, true);
 set local role authenticated;
 select is(
-  (public.list_workspace_roles(pg_temp.f('workspace'), 1)->>'total')::integer,
+  public.count_workspace_roles(pg_temp.f('workspace'))::integer,
   4, 'List includes three system roles and workspace custom role only'
 );
 select is(
@@ -45,7 +45,7 @@ select is(
   3, 'Cursor excludes the already loaded role'
 );
 select is(
-  (public.list_workspace_roles(pg_temp.f('workspace'), 10, null, null, 'CUSTOM')->>'total')::integer,
+  public.count_workspace_roles(pg_temp.f('workspace'), 'CUSTOM')::integer,
   1, 'Filter searches role names case insensitively'
 );
 select throws_ok(
@@ -67,7 +67,7 @@ select is(
   1::bigint, 'Duplicate copies the saved permissions'
 );
 select is(
-  (public.list_workspace_role_members(pg_temp.f('workspace'), pg_temp.f('copy'))->>'total')::integer,
+  public.count_workspace_role_members(pg_temp.f('workspace'), pg_temp.f('copy'))::integer,
   0, 'Duplicate does not assign members'
 );
 insert into management_fixture values

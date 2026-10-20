@@ -19,6 +19,22 @@ const taskSchema = z.object({
 
 export type Task = z.infer<typeof taskSchema>
 
+const taskCountsSchema = z.object({
+  all: z.number().int().nonnegative(),
+  todo: z.number().int().nonnegative(),
+  in_progress: z.number().int().nonnegative(),
+  done: z.number().int().nonnegative(),
+})
+export type TaskCounts = z.infer<typeof taskCountsSchema>
+
+export async function countWorkspaceTasks(workspaceId: string, search = '') {
+  const { data, error } = await supabase.rpc('count_workspace_task_summary', {
+    target_workspace_id: workspaceId, search_term: search,
+  })
+  if (error) throw new Error(error.message)
+  return taskCountsSchema.parse(data)
+}
+
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1, 'Task name is required.'),
 })

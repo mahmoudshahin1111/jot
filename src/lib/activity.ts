@@ -22,7 +22,6 @@ const activityPageSchema = z.object({
   events: z.array(activityEventSchema),
   has_more: z.boolean(),
   next_cursor: activityCursorSchema.nullable(),
-  total_count: z.number().int().nonnegative(),
 })
 
 export type ActivityEvent = z.infer<typeof activityEventSchema>
@@ -71,4 +70,12 @@ export async function getActivityEvents(workspaceId: string, search: string, aft
   })
   if (error) throw new Error(error.message)
   return activityPageSchema.parse(data)
+}
+
+export async function countActivityEvents(workspaceId: string, search: string) {
+  const { data, error } = await supabase.rpc('count_workspace_activity_events', {
+    target_workspace_id: workspaceId, search_term: search,
+  })
+  if (error) throw new Error(error.message)
+  return z.number().int().nonnegative().parse(data)
 }

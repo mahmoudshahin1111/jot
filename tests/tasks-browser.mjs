@@ -31,8 +31,32 @@ test('Tasks loads all bounded RPC pages for complete counts and description sear
     const filters = page.getByRole('group', { name: 'Filter tasks by status' })
     await filters.getByRole('button', { name: 'All 205', exact: true }).waitFor()
     await filters.getByRole('button', { name: 'Done 1', exact: true }).waitFor()
+    await page.getByText('205 tasks in this workspace, 1 done', { exact: true }).waitFor()
+    const countCalls = () => requests.filter(request =>
+      request.method() === 'POST' && request.url().endsWith('/rpc/count_workspace_task_summary'))
+    assert.ok(countCalls().length > 0, 'Task counts load through a separate RPC')
+    assert.equal(new Set(countCalls().map(request => request.postDataJSON().search_term)).size, 1,
+      'Loading multiple record pages only requests the unfiltered count')
     await page.getByRole('searchbox', { name: 'Search tasks', exact: true }).fill('BEYOND FIRST PAGE')
     await page.getByRole('table', { name: 'Workspace tasks' }).getByRole('button', { name: lastTask.title, exact: true }).waitFor()
+    await page.getByRole('table', { name: 'Workspace tasks' }).getByRole('button', { name: 'Done (1)', exact: true }).waitFor()
+    assert.ok(countCalls().some(request => request.postDataJSON().search_term === 'beyond first page'))
+    const filteredCountCalls = countCalls().length
+    await page.getByRole('button', { name: 'Board', exact: true }).click()
+    await page.getByRole('region', { name: 'Task board' }).waitFor()
+    await filters.getByRole('button', { name: 'Done 1', exact: true }).click()
+    assert.equal(countCalls().length, filteredCountCalls, 'View and status selection reuse the summary')
+    await page.route('**/rest/v1/rpc/count_workspace_task_summary', async route => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'Task count unavailable' }) })
+      } else await route.continue()
+    })
+    await page.getByRole('searchbox', { name: 'Search tasks', exact: true }).fill('paged')
+    await page.getByRole('alert').filter({ hasText: 'Task count unavailable' }).waitFor()
+    await page.getByRole('region', { name: 'Task board' }).getByRole('button', { name: `Open task: ${lastTask.title}`, exact: true }).waitFor()
+    await page.unroute('**/rest/v1/rpc/count_workspace_task_summary')
+    await page.getByRole('button', { name: 'Retry matching counts', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: 'Task count unavailable' }).waitFor({ state: 'detached' })
     assert.ok(requests.every(request => new URL(request.url()).pathname.startsWith('/rest/v1/rpc/')), 'Browser never queries application tables')
     const pages = requests.filter(request => request.url().endsWith('/rpc/list_workspace_tasks')).map(request => request.postDataJSON())
     assert.ok(pages.every(args => args.page_size === 100))

@@ -1,10 +1,9 @@
 import { useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Menu } from '@base-ui/react/menu'
-import { Avatar } from '@base-ui/react/avatar'
 import { LogOut, UserRound } from 'lucide-react'
+import { UserAvatar } from '@/components/user-avatar'
 import { useAuthenticatedUser } from '@/hooks/use-authenticated-user'
-import { getAvatarColor, getAvatarInitials } from '@/lib/avatar'
 import { supabase } from '@/lib/supabaseClient'
 
 export function UserMenu({
@@ -17,6 +16,7 @@ export function UserMenu({
   loggingOut?: boolean
 }) {
   const { user, error } = useAuthenticatedUser()
+  const { pathname } = useLocation()
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
@@ -47,11 +47,9 @@ export function UserMenu({
     .find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? 'User'
   const name = [metadata.full_name, metadata.name, username]
     .find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? username
-  const avatar = (
-    <Avatar.Root className={`flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ${getAvatarColor(username)}`}>
-      <Avatar.Fallback>{getAvatarInitials(username)}</Avatar.Fallback>
-    </Avatar.Root>
-  )
+  const avatar = <UserAvatar text={username} />
+  const workspaceId = pathname.match(/^\/workspaces\/([^/]+)/)?.[1]
+  const profilePath = workspaceId ? `/workspaces/${workspaceId}/profile` : '/profile'
   const itemClass = 'flex min-h-11 items-center gap-2 rounded-md px-3 text-sm outline-none data-highlighted:bg-accent data-disabled:opacity-50'
 
   return (
@@ -76,7 +74,7 @@ export function UserMenu({
               </div>
               <Menu.Separator className="my-1 h-px bg-border" />
               <Menu.Item
-                render={<Link to="/profile" />}
+                render={<Link to={profilePath} />}
                 onClick={event => { if (onNavigate && !onNavigate()) event.preventDefault() }}
                 className={itemClass}
               >

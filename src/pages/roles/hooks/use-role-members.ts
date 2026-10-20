@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getRoleMembers, removeRoleMember, roleErrorMessage, rolePageSize, type RoleMember } from '@/lib/roles'
+import { countRoleMembers, getRoleMembers, removeRoleMember, roleErrorMessage, rolePageSize, type RoleMember } from '@/lib/roles'
+import { useRecordCount } from '@/hooks/use-record-count'
 
 export function useRoleMembers(
   workspaceId: string,
@@ -8,7 +9,6 @@ export function useRoleMembers(
   checkAccess: () => Promise<boolean>,
 ) {
   const [members, setMembers] = useState<RoleMember[]>([])
-  const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -20,6 +20,12 @@ export function useRoleMembers(
   const generation = useRef(0)
   const cursor = useRef<string | undefined>(undefined)
   const removalInFlight = useRef(false)
+  const loadCount = useCallback(() => countRoleMembers(workspaceId, roleId), [workspaceId, roleId])
+  const count = useRecordCount(loadCount, true, revision)
+
+  useEffect(() => {
+    if (count.total !== null) updateCount(roleId, count.total)
+  }, [count.total, roleId, updateCount])
 
   const load = useCallback(async (append: boolean, current: number) => {
     if (fetching.current || removalInFlight.current) return
@@ -32,8 +38,6 @@ export function useRoleMembers(
       const batch = page.members.slice(0, rolePageSize)
       cursor.current = batch[batch.length - 1]?.user_id ?? cursor.current
       setMembers(previous => append ? [...previous, ...batch] : batch)
-      setTotal(page.total)
-      updateCount(roleId, page.total)
       setHasMore(page.members.length > rolePageSize)
     } catch (cause) {
       if (current === generation.current) setError(roleErrorMessage(cause))
@@ -43,7 +47,7 @@ export function useRoleMembers(
         setLoading(false)
       }
     }
-  }, [roleId, updateCount, workspaceId])
+  }, [roleId, workspaceId])
 
   useEffect(() => {
     const current = ++generation.current
@@ -77,8 +81,7 @@ export function useRoleMembers(
       await removeRoleMember(workspaceId, roleId, member.user_id)
       if (current !== generation.current) return
       setMembers(previous => previous.filter(item => item.user_id !== member.user_id))
-      setTotal(total - 1)
-      updateCount(roleId, total - 1)
+      count.refresh()
       setNotice(`${member.name} removed from the workspace.`)
       await checkAccess()
     } catch (cause) {
@@ -90,7 +93,8 @@ export function useRoleMembers(
   }
 
   return {
-    members, total, hasMore, loading, error, actionError, removing, notice, loadMore, remove,
+    members, total: count.total, countError: count.error, retryCount: count.refresh,
+    hasMore, loading, error, actionError, removing, notice, loadMore, remove,
     retry: () => setRevision(value => value + 1),
     refresh: () => setRevision(value => value + 1),
   }

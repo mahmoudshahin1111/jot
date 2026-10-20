@@ -60,12 +60,12 @@ select is(
   'true', 'Pagination reports more events'
 );
 select is(
-  public.list_workspace_activity_events(pg_temp.f('workspace'), 1)->>'total_count',
-  '2', 'Total counts all matching events, not only the page'
+  public.count_workspace_activity_events(pg_temp.f('workspace')),
+  2::bigint, 'Total counts all matching events, not only the page'
 );
 select is(
-  public.list_workspace_activity_events(pg_temp.f('workspace'), 1, null, null, 'RELEASE')->>'total_count',
-  '1', 'Total count respects the search'
+  public.count_workspace_activity_events(pg_temp.f('workspace'), 'RELEASE'),
+  1::bigint, 'Total count respects the search'
 );
 select is(
   jsonb_array_length(public.list_workspace_activity_events(

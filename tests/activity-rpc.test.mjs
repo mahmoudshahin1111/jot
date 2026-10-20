@@ -20,11 +20,13 @@ test('Activity RPC paginates tied timestamps with complete, filtered workspace c
       description: 'Created task in another workspace',
     }))
     const list = args => owner.client.rpc('list_workspace_activity_events', { target_workspace_id: workspace, ...args })
+    const count = search_term => owner.client.rpc('count_workspace_activity_events', { target_workspace_id: workspace, search_term })
+    assert.equal(unwrap(await count('')), 45)
     const ids = []
     let cursor = {}
     for (;;) {
       const page = unwrap(await list({ page_size: 20, ...cursor }))
-      assert.equal(page.total_count, 45)
+      assert.equal('total_count' in page, false)
       assert.ok(page.events.length <= 20)
       ids.push(...page.events.map(event => event.id))
       if (!page.has_more) break
@@ -35,18 +37,19 @@ test('Activity RPC paginates tied timestamps with complete, filtered workspace c
     assert.deepEqual(new Set(ids), new Set(seeded.map(event => event.id)))
     assert.deepEqual(ids, [...ids].sort().reverse(), 'UUID breaks timestamp ties newest first')
     const filtered = unwrap(await list({ search_term: '  CREATED  ', page_size: 20 }))
-    assert.equal(filtered.total_count, 23)
+    assert.equal(unwrap(await count('  CREATED  ')), 23)
     assert.equal(filtered.has_more, true)
     const filteredNext = unwrap(await list({
       search_term: 'created', page_size: 20,
       before_created_at: filtered.next_cursor.created_at, before_id: filtered.next_cursor.id,
     }))
-    assert.equal(filteredNext.total_count, 23)
+    assert.equal('total_count' in filteredNext, false)
     assert.equal(filteredNext.events.length, 3)
     assert.equal(filteredNext.has_more, false)
     assert.deepEqual(unwrap(await list({ search_term: 'no matches' })), {
-      events: [], total_count: 0, has_more: false, next_cursor: null,
+      events: [], has_more: false, next_cursor: null,
     })
+    assert.equal(unwrap(await count('no matches')), 0)
     for (const args of [
       { page_size: 0 }, { page_size: 101 }, { page_size: null },
       { before_id: randomUUID() }, { before_created_at: timestamp },
@@ -68,6 +71,7 @@ test('Activity RPC rejects unauthorized callers and records task RPC mutations p
     }))
     for (const client of [anonymous(), viewer.client, outsider.client]) {
       assert.equal((await client.rpc('list_workspace_activity_events', { target_workspace_id: workspace })).error?.code, '42501')
+      assert.equal((await client.rpc('count_workspace_activity_events', { target_workspace_id: workspace })).error?.code, '42501')
     }
     const task = unwrap(await owner.client.rpc('create_workspace_task', { target_workspace_id: workspace, task_title: 'Activity mutation' }))
     unwrap(await owner.client.rpc('update_workspace_task', {
@@ -77,11 +81,14 @@ test('Activity RPC rejects unauthorized callers and records task RPC mutations p
     const page = unwrap(await owner.client.rpc('list_workspace_activity_events', {
       target_workspace_id: workspace, search_term: 'Activity mutation',
     }))
-    assert.equal(page.total_count, 3)
+    assert.equal(unwrap(await owner.client.rpc('count_workspace_activity_events', {
+      target_workspace_id: workspace, search_term: 'Activity mutation',
+    })), 3)
     assert.deepEqual(page.events.map(event => event.event_type), ['task.deleted', 'task.updated', 'task.created'])
     assert.ok(page.events.every(event => event.actor_user_id === owner.id && event.affected_item_id === task.id))
     unwrap(await admin.from('workspace_users').delete().eq('workspace_id', workspace).eq('user_id', owner.id))
     assert.equal((await owner.client.rpc('list_workspace_activity_events', { target_workspace_id: workspace })).error?.code, '42501')
+    assert.equal((await owner.client.rpc('count_workspace_activity_events', { target_workspace_id: workspace })).error?.code, '42501')
   } finally {
     await f.cleanup()
   }

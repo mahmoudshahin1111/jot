@@ -33,7 +33,6 @@ const memberSchema = z.object({
 
 const rolesPageSchema = z.object({
   roles: z.array(roleSchema),
-  total: z.number(),
   permissions: z.array(permissionSchema),
   capabilities: z.object({
     update: z.boolean(),
@@ -106,7 +105,23 @@ export async function getRoleMembers(workspaceId: string, roleId: string, after?
     after_user_id: after ?? null,
   })
   if (error) throw error
-  return z.object({ members: z.array(memberSchema), total: z.number() }).parse(data)
+  return z.object({ members: z.array(memberSchema) }).parse(data)
+}
+
+export async function countRoles(workspaceId: string, search: string) {
+  const { data, error } = await supabase.rpc('count_workspace_roles', {
+    target_workspace_id: workspaceId, search_term: search,
+  })
+  if (error) throw error
+  return z.number().int().nonnegative().parse(data)
+}
+
+export async function countRoleMembers(workspaceId: string, roleId: string) {
+  const { data, error } = await supabase.rpc('count_workspace_role_members', {
+    target_workspace_id: workspaceId, target_role_id: roleId,
+  })
+  if (error) throw error
+  return z.number().int().nonnegative().parse(data)
 }
 
 export async function saveRolePermissions(workspaceId: string, role: WorkspaceRole, permissionIds: string[]) {

@@ -148,9 +148,13 @@ function WorkspaceRoles({ workspaceId }: { workspaceId: string }) {
           <div>
             <h2 className="text-xl font-semibold">Roles</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              {state.metadata?.total ?? 0} {state.searching ? 'matching roles' : 'roles in this workspace'}
+              {state.metadata?.total ?? '...'} {state.searching ? 'matching roles' : 'roles in this workspace'}
             </p>
           </div>
+          {state.countError && <div className="space-y-2">
+            <p role="alert" className="text-sm text-destructive">Unable to load the total: {state.countError}</p>
+            <Button variant="outline" onClick={state.retryCount}>Retry count</Button>
+          </div>}
           <Input
             placeholder="Filter roles"
             aria-label="Filter roles"

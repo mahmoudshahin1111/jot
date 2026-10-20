@@ -1,9 +1,10 @@
-import { taskStatuses, taskStatusLabels, type Task, type TaskStatus } from '@/lib/tasks'
+import { taskStatuses, taskStatusLabels, type Task, type TaskCounts, type TaskStatus } from '@/lib/tasks'
 import { useTaskDrag } from '../hooks/use-task-drag'
 import { StatusPill } from './status-pill'
 
-export function TaskBoard({ tasks, statuses = taskStatuses, searching, selectedId, canUpdate, busy, onSelect, onMove }: {
+export function TaskBoard({ tasks, counts, statuses = taskStatuses, searching, selectedId, canUpdate, busy, onSelect, onMove }: {
   tasks: Task[]
+  counts: TaskCounts | null
   statuses?: readonly TaskStatus[]
   searching: boolean
   selectedId: string | undefined
@@ -27,7 +28,7 @@ export function TaskBoard({ tasks, statuses = taskStatuses, searching, selectedI
           >
             <h2 className="flex items-center gap-2">
               <StatusPill status={status} />
-              <span className="text-xs text-muted-foreground">{group.length}</span>
+              <span className="text-xs text-muted-foreground">{counts?.[status] ?? '...'}</span>
             </h2>
             <ul className="min-h-16 space-y-3">
               {group.map(task => (

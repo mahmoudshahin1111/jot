@@ -11,9 +11,15 @@ test('Activity shows three columns, details from every cell, bounded pages, sear
   try {
     const owner = await f.user('activity-browser-owner')
     const workspace = await f.workspace(owner)
+    const eventTypes = [
+      'workspace.created', 'task.created', 'task.updated', 'task.deleted',
+      'role.created', 'role.updated', 'role.deleted', 'role.permissions.updated',
+      'member.added', 'member.role_changed', 'member.removed',
+      'invitation.created', 'invitation.canceled', 'invitation.accepted',
+    ]
     unwrap(await admin.from('workspace_activity_events').delete().eq('workspace_id', workspace))
     unwrap(await admin.from('workspace_activity_events').insert(Array.from({ length: 45 }, (_, index) => ({
-      workspace_id: workspace, event_type: 'task.updated', actor_name: 'Amira Hassan',
+      workspace_id: workspace, event_type: index === 44 ? 'task.updated' : eventTypes[index % eventTypes.length], actor_name: 'Amira Hassan',
       description: `Updated task ${index}`, created_at: new Date(Date.UTC(2026, 9, 16, 12, index)).toISOString(),
     }))))
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
@@ -31,6 +37,27 @@ test('Activity shows three columns, details from every cell, bounded pages, sear
     const previous = page.getByRole('button', { name: 'Previous', exact: true })
     const next = page.getByRole('button', { name: 'Next', exact: true })
     await page.getByText('Showing 1 to 20 of 45 events', { exact: true }).waitFor()
+    const countCalls = () => requests.filter(request =>
+      request.method() === 'POST' && request.url().endsWith('/rpc/count_workspace_activity_events'))
+    const initialCounts = countCalls().length
+    assert.ok(initialCounts > 0)
+    async function checkBadges() {
+      const badges = await table.locator('td:first-child > span').evaluateAll(elements => elements.map(element => {
+        const style = getComputedStyle(element)
+        const cell = element.parentElement.getBoundingClientRect()
+        const badge = element.getBoundingClientRect()
+        return { label: element.textContent, color: style.color, whitespace: style.whiteSpace, fits: badge.right <= cell.right }
+      }))
+      const colors = new Map(badges.map(badge => [badge.label, badge.color]))
+      assert.equal(colors.size, eventTypes.length)
+      assert.equal(new Set(colors.values()).size, eventTypes.length, 'Every event type has a different color')
+      assert.ok(badges.every(badge => badge.whitespace === 'nowrap' && badge.fits), 'All badges fit without wrapping')
+      assert.equal(await table.locator('col').first().evaluate(element => element.getBoundingClientRect().width), 208)
+    }
+    await checkBadges()
+    await page.evaluate(() => document.documentElement.classList.add('dark'))
+    await checkBadges()
+    await page.evaluate(() => document.documentElement.classList.remove('dark'))
     assert.equal(await table.getByRole('columnheader').count(), 0)
     assert.equal(await table.getByRole('row').count(), 20)
     assert.equal(await previous.isDisabled(), true)
@@ -50,6 +77,7 @@ test('Activity shows three columns, details from every cell, bounded pages, sear
     await page.getByRole('region', { name: 'Event details' }).waitFor()
     await next.click()
     await page.getByText('Showing 21 to 40 of 45 events', { exact: true }).waitFor()
+    assert.equal(countCalls().length, initialCounts, 'Next/Previous never recount')
     assert.equal(await page.getByRole('region', { name: 'Event details' }).count(), 0)
     await next.click()
     await page.getByText('Showing 41 to 45 of 45 events', { exact: true }).waitFor()
@@ -60,6 +88,7 @@ test('Activity shows three columns, details from every cell, bounded pages, sear
     const search = page.getByRole('searchbox', { name: 'Search activity' })
     await search.fill('Updated task 44')
     await page.getByText('Showing 1 to 1 of 1 events', { exact: true }).waitFor()
+    assert.equal(countCalls().at(-1).postDataJSON().search_term, 'Updated task 44')
     assert.equal(await previous.isDisabled(), true)
     assert.equal(await next.isDisabled(), true)
     await search.fill('nothing matches')
@@ -75,6 +104,20 @@ test('Activity shows three columns, details from every cell, bounded pages, sear
     assert.equal(await next.isDisabled(), true)
     await page.unroute('**/rest/v1/rpc/list_workspace_activity_events')
     await page.getByRole('button', { name: 'Try again' }).click()
+    await page.getByText('Showing 1 to 20 of 45 events', { exact: true }).waitFor()
+    await page.route('**/rest/v1/rpc/count_workspace_activity_events', async route => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'Count unavailable' }) })
+      } else await route.continue()
+    })
+    await search.fill('Updated task 44')
+    await page.getByRole('alert').filter({ hasText: 'Count unavailable' }).waitFor()
+    await page.getByText('Showing 1 to 1 events', { exact: true }).waitFor()
+    assert.equal(await table.getByRole('row').count(), 1, 'Count failure does not hide events')
+    await page.unroute('**/rest/v1/rpc/count_workspace_activity_events')
+    await page.getByRole('button', { name: 'Retry count', exact: true }).click()
+    await page.getByText('Showing 1 to 1 of 1 events', { exact: true }).waitFor()
+    await search.fill('')
     await page.getByText('Showing 1 to 20 of 45 events', { exact: true }).waitFor()
     await page.setViewportSize({ width: 390, height: 844 })
     await table.getByRole('row').first().press('Space')

@@ -29,6 +29,7 @@ function App() {
           <Route path="tasks" element={<TasksPage />} />
           <Route path="dashboard" element={<main aria-label="Dashboard" className="min-h-96" />} />
           <Route path="activity" element={<ActivityPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="settings/roles" element={<RolesPage />} />
           <Route path="settings/users" element={<UsersPage />} />
         </Route>

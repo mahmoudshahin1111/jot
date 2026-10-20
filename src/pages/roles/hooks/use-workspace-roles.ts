@@ -2,9 +2,10 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { WorkspaceNavigationContext } from '@/hooks/use-workspace-shell'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useWorkspaceAccess } from '@/hooks/use-workspace-access'
+import { useRecordCount } from '@/hooks/use-record-count'
 import { PERMISSIONS } from '@/lib/permissions'
 import {
-  createRole, deleteRole, duplicateRole, getRoleMembers, getRoles, roleErrorMessage, rolePageSize, saveRolePermissions,
+  countRoleMembers, countRoles, createRole, deleteRole, duplicateRole, getRoles, roleErrorMessage, rolePageSize, saveRolePermissions,
   type RolesPage, type WorkspaceRole,
 } from '@/lib/roles'
 
@@ -33,6 +34,9 @@ export function useWorkspaceRoles(workspaceId: string) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionErrorCode, setActionErrorCode] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
+  const [countRevision, setCountRevision] = useState(0)
+  const loadCount = useCallback(() => countRoles(workspaceId, search), [workspaceId, search])
+  const count = useRecordCount(loadCount, hasPermission(PERMISSIONS.roles.read), countRevision)
   const generation = useRef(0)
   const fetching = useRef(false)
   const actionInFlight = useRef(false)
@@ -187,6 +191,7 @@ export function useWorkspaceRoles(workspaceId: string) {
       setDraft(role.permission_ids)
       setFilter('')
       setRevision(value => value + 1)
+      setCountRevision(value => value + 1)
       setNotice('Role created. You can now manage its permissions and members.')
     })
   }
@@ -218,6 +223,7 @@ export function useWorkspaceRoles(workspaceId: string) {
       setDraft(copy.permission_ids)
       setFilter('')
       setRevision(value => value + 1)
+      setCountRevision(value => value + 1)
       setNotice('Role duplicated without members.')
     })
   }
@@ -232,7 +238,7 @@ export function useWorkspaceRoles(workspaceId: string) {
       } catch (cause) {
         if (errorCode(cause) !== '23514') throw cause
         // The visible member count was stale; refresh it so the button locks.
-        const { total } = await getRoleMembers(workspaceId, role.id)
+        const total = await countRoleMembers(workspaceId, role.id)
         updateMemberCount(role.id, total)
         throw cause
       }
@@ -240,6 +246,7 @@ export function useWorkspaceRoles(workspaceId: string) {
       selectedRef.current = null
       setDraft([])
       setRevision(value => value + 1)
+      setCountRevision(value => value + 1)
       setNotice('Role deleted.')
     })
   }
@@ -252,6 +259,7 @@ export function useWorkspaceRoles(workspaceId: string) {
   return {
     roles, metadata: metadata && {
       ...metadata,
+      total: count.total,
       capabilities: {
         update: hasPermission(PERMISSIONS.roles.update),
         create: hasPermission(PERMISSIONS.roles.create),
@@ -261,11 +269,12 @@ export function useWorkspaceRoles(workspaceId: string) {
         add_members: hasPermission(PERMISSIONS.roles.addMembers),
       },
     }, selectedRole, draft, dirty, canEditRole, canDeleteRole, selfRoleEditBlocked, filter, setFilter, loading, hasMore,
-    error, actionError, actionErrorCode, busy, notice, loadMore, selectRole, togglePermission, discard, save, duplicate,
+    error, countError: count.error, retryCount: count.refresh,
+    actionError, actionErrorCode, busy, notice, loadMore, selectRole, togglePermission, discard, save, duplicate,
     searching: search !== '',
     confirmLeave: () => !dirty || window.confirm('Discard unsaved permission changes and leave this page?'),
     create, removeRole, updateMemberCount, checkAccess,
     refreshRoles: () => setRevision(value => value + 1),
-    retry: () => setRevision(value => value + 1),
+    retry: () => { setRevision(value => value + 1); count.refresh() },
   }
 }
