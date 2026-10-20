@@ -39,6 +39,40 @@ async function signIn(context, account = user) {
   await context.route(`${authURL}/rest/v1/rpc/list_my_workspaces`, route => route.fulfill({
     json: [{ id: '00000000-0000-4000-8000-000000000002', name: 'Test workspace', created_at: '2026-01-01T00:00:00Z' }],
   }))
+  await context.route(`${authURL}/rest/v1/rpc/get_workspace_access`, route => route.fulfill({
+    json: {
+      id: '00000000-0000-4000-8000-000000000002',
+      name: 'Test workspace',
+      role_id: '00000000-0000-4000-8000-000000000003',
+      is_owner: false,
+      permissions: ['tasks.read'],
+    },
+  }))
+  await context.route(`${authURL}/rest/v1/rpc/get_workspace_role`, route => route.fulfill({
+    json: {
+      id: '00000000-0000-4000-8000-000000000003',
+      key: 'admin',
+      name: 'Admin',
+      is_system: true,
+      member_count: 1,
+      permission_ids: [],
+    },
+  }))
+  await context.route(`${authURL}/auth/v1/token*`, async route => {
+    const credentials = route.request().postDataJSON()
+    if (credentials.password !== 'current-password') {
+      return route.fulfill({ status: 400, json: { msg: 'Invalid login credentials.', error: 'invalid_grant' } })
+    }
+    return route.fulfill({
+      json: {
+        access_token: 'verified-browser-test-session',
+        refresh_token: 'verified-browser-test-refresh',
+        token_type: 'bearer',
+        expires_in: 3600,
+        user,
+      },
+    })
+  })
 }
 
 test('unauthenticated visitors cannot access the profile form', async () => {
@@ -47,7 +81,7 @@ test('unauthenticated visitors cannot access the profile form', async () => {
     const page = await browser.newPage()
     await page.goto(`${baseURL}/profile`)
     await page.waitForURL('**/login')
-    assert.equal(await page.getByRole('button', { name: 'Save password' }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Update password' }).count(), 0)
   } finally { await browser.close() }
 })
 
@@ -69,6 +103,7 @@ for (const width of [1280, 375, 320]) {
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width)
       await page.getByRole('menuitem', { name: 'Profile', exact: true }).click()
       await page.waitForURL('**/profile')
+      await page.getByRole('heading', { name: 'Change password' }).waitFor()
       let updates = 0
       const updateBodies = []
       let updateError = false
@@ -80,23 +115,36 @@ for (const width of [1280, 375, 320]) {
           ? { status: 422, json: { msg: 'Password update rejected.', code: 'weak_password' } }
           : { json: user })
       })
+      const currentPassword = page.getByLabel('Current password', { exact: true })
       const password = page.getByLabel('New password', { exact: true })
-      const confirmation = page.getByLabel('Confirm password', { exact: true })
-      const save = page.getByRole('button', { name: 'Save password', exact: true })
+      const confirmation = page.getByLabel('Confirm new password', { exact: true })
+      const save = page.getByRole('button', { name: 'Update password', exact: true })
       await save.click()
-      await page.getByText('Password must be at least 6 characters.', { exact: true }).waitFor()
-      await page.getByText('Confirm your password.', { exact: true }).waitFor()
+      await page.getByText('Enter your current password.', { exact: true }).waitFor()
+      await page.getByText('Password must be at least 8 characters.', { exact: true }).waitFor()
+      await page.getByText('Confirm your new password.', { exact: true }).waitFor()
+      await currentPassword.fill('current-password')
       await password.fill('new-password-123')
       await confirmation.fill('different-password')
       await save.click()
       await page.getByText('Passwords do not match.', { exact: true }).waitFor()
       assert.equal(updates, 0)
       await confirmation.fill('new-password-123')
+      await currentPassword.fill('wrong-password')
+      await save.click()
+      await page.getByRole('alert').filter({ hasText: 'Invalid login credentials.' }).waitFor()
+      assert.equal(updates, 0)
+      await currentPassword.fill('current-password')
+      await page.getByLabel('Show passwords').check()
+      assert.equal(await password.getAttribute('type'), 'text')
+      await confirmation.fill('new-password-123')
       await save.click()
       await page.getByRole('status').filter({ hasText: 'Password updated successfully.' }).waitFor()
+      assert.equal(await currentPassword.inputValue(), '')
       assert.equal(await password.inputValue(), '')
       assert.equal(await confirmation.inputValue(), '')
       updateError = true
+      await currentPassword.fill('current-password')
       await password.fill('new-password-123')
       await confirmation.fill('new-password-123')
       await save.click()
@@ -104,6 +152,10 @@ for (const width of [1280, 375, 320]) {
       assert.equal(updates, 2)
       assert.ok(updateBodies.every(body => body.password === 'new-password-123' && !('confirmPassword' in body)))
       assert.equal(await page.getByText('Password updated successfully.', { exact: true }).count(), 0)
+      await currentPassword.fill('cancel-current')
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+      assert.equal(await currentPassword.inputValue(), '')
+      assert.equal(await password.inputValue(), '')
       await page.getByRole('button', { name: 'User menu' }).focus()
       await page.keyboard.press('Enter')
       await menu.waitFor()

@@ -29,6 +29,12 @@ export function useWorkspaceNavigation(workspaceId: string, hasPermission: (perm
   })).filter(group => group.items.length > 0)
   const currentGroup = groups.find(group => group.items.some(item => item.to === pathname))
   const currentPage = currentGroup?.items.find(item => item.to === pathname)
+  if (pathname === `${basePath}/profile`) {
+    return {
+      groups,
+      breadcrumbs: [{ label: 'account' }, { label: 'profile' }],
+    }
+  }
   const breadcrumbs: BreadcrumbItem[] = [
     { label: 'Workspace', to: `${basePath}/dashboard` },
     ...(currentGroup ? [{ label: currentGroup.label }] : []),

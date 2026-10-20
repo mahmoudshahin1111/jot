@@ -4,6 +4,7 @@ import { Mail, Plus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { UserAvatar } from '@/components/user-avatar'
 import { InviteUserDialog } from './components/invite-user-dialog'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useWorkspaceAccess } from '@/hooks/use-workspace-access'
@@ -225,7 +226,7 @@ function WorkspaceUsers({ workspaceId }: { workspaceId: string }) {
               <ul className="divide-y border-y">
                 {section === 'users' ? members.map(member => (
                   <li key={member.user_id} className="flex items-center gap-3 py-4">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium" aria-hidden="true">{member.name.slice(0, 2).toUpperCase()}</span>
+                    <UserAvatar text={member.name} decorative />
                     <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium" title={member.name}>{member.name}</p><p className="truncate font-mono text-xs text-muted-foreground" title={member.email}>{member.email}</p><p className="text-xs text-muted-foreground">{member.role_name}</p></div>
                     <Button variant="ghost" disabled={!canRemove || busy || loading} aria-label={`Remove ${member.name} from workspace`} onClick={() => { void remove(member.user_id, member) }}>Remove</Button>
                   </li>

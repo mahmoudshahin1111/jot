@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { AddRoleMembersDialog } from './add-role-members-dialog'
 import { Button } from '@/components/ui/button'
+import { UserAvatar } from '@/components/user-avatar'
 import { InfiniteScroll } from '@/components/infinite-scroll'
 import { useRoleMembers } from '../hooks/use-role-members'
 
@@ -63,9 +64,7 @@ export function RoleMembers({
         <ul className="divide-y border-y">
           {members.members.map(member => (
             <li key={member.user_id} className="flex items-center gap-3 py-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-medium" aria-hidden="true">
-                {member.name.slice(0, 2).toUpperCase()}
-              </span>
+              <UserAvatar text={member.name} decorative />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium" title={member.name}>{member.name}</p>
                 <p className="truncate font-mono text-xs text-muted-foreground" title={member.email}>{member.email}</p>

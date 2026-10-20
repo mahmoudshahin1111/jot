@@ -26,17 +26,24 @@ test('avatar initials handle short and Unicode usernames', () => {
   assert.equal(getAvatarInitials('😀a'), '😀A')
 })
 
-test('password and confirmation are required and must match', () => {
+test('current password, password requirements, and confirmation are enforced', () => {
   for (const values of [
-    { password: '', confirmPassword: '' },
-    { password: '', confirmPassword: 'secret123' },
-    { password: 'secret123', confirmPassword: '' },
-    { password: 'secret123', confirmPassword: 'different' },
-    { password: 'short', confirmPassword: 'short' },
+    { currentPassword: '', password: '', confirmPassword: '' },
+    { currentPassword: 'current', password: '', confirmPassword: 'secret1234' },
+    { currentPassword: 'current', password: '12345678', confirmPassword: '12345678' },
+    { currentPassword: 'current', password: 'abcdefgh', confirmPassword: 'abcdefgh' },
+    { currentPassword: 'current', password: 'short1', confirmPassword: 'short1' },
+    { currentPassword: 'current', password: 'a123456', confirmPassword: 'a123456' },
+    { currentPassword: 'current', password: 'secret1234', confirmPassword: '' },
+    { currentPassword: 'current', password: 'secret1234', confirmPassword: 'different123' },
   ]) {
     assert.equal(profileSchema.safeParse(values).success, false)
   }
-  const mismatch = profileSchema.safeParse({ password: 'secret123', confirmPassword: 'different' })
+  const mismatch = profileSchema.safeParse({
+    currentPassword: 'current', password: 'secret1234', confirmPassword: 'different123',
+  })
   assert.ok(mismatch.error.issues.some(issue => issue.path[0] === 'confirmPassword' && issue.message === 'Passwords do not match.'))
-  assert.equal(profileSchema.safeParse({ password: 'secret123', confirmPassword: 'secret123' }).success, true)
+  assert.equal(profileSchema.safeParse({
+    currentPassword: 'current', password: 'a1234567', confirmPassword: 'a1234567',
+  }).success, true)
 })
