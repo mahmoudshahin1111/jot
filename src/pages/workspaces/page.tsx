@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { LoaderCircle } from 'lucide-react'
 import { AuthLayout } from '@/components/auth-layout'
+import { UserMenu } from '@/components/user-menu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -63,6 +64,10 @@ export function WorkspacesPage({ create = false }: { create?: boolean }) {
   }
 
   return (
+    <>
+    <header className="flex justify-end border-b px-5 py-4 sm:px-6">
+      <UserMenu />
+    </header>
     <AuthLayout
       title={create ? 'Create your workspace' : 'Your workspaces'}
       description={create ? 'Give your team and tasks a place to belong.' : 'Workspaces you belong to.'}
@@ -121,5 +126,6 @@ export function WorkspacesPage({ create = false }: { create?: boolean }) {
         </div>
       )}
     </AuthLayout>
+    </>
   )
 }

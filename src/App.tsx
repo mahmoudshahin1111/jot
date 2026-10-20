@@ -9,6 +9,7 @@ import { TasksPage } from '@/pages/tasks/page'
 import { ActivityPage } from '@/pages/activity/page'
 import { UsersPage } from '@/pages/users/page'
 import { AcceptInvitationPage } from '@/pages/accept-invitation/page'
+import { ProfilePage } from '@/pages/profile/page'
   
 import './App.css'
 
@@ -20,6 +21,7 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/workspaces" element={<WorkspacesPage key="list" />} />
         <Route path="/workspaces/new" element={<WorkspacesPage key="create" create />} />
         <Route path="/workspaces/:workspaceId" element={<WorkspaceLayout />}>
