@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Menu } from '@base-ui/react/menu'
 import { LogOut, UserRound } from 'lucide-react'
@@ -20,7 +20,18 @@ export function UserMenu({
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
+  const [avatarOverride, setAvatarOverride] = useState<{ userId: string; path: unknown } | null>(null)
   const inFlight = useRef(false)
+
+  useEffect(() => {
+    if (!user) return
+    const userId = user.id
+    function updateAvatar(event: Event) {
+      setAvatarOverride({ userId, path: (event as CustomEvent<unknown>).detail })
+    }
+    window.addEventListener('jot:avatar-updated', updateAvatar)
+    return () => window.removeEventListener('jot:avatar-updated', updateAvatar)
+  }, [user])
 
   async function logout() {
     if (onLogout) return onLogout()
@@ -47,7 +58,10 @@ export function UserMenu({
     .find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? 'User'
   const name = [metadata.full_name, metadata.name, username]
     .find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? username
-  const avatar = <UserAvatar text={username} />
+  const displayedAvatarPath = avatarOverride?.userId === user.id
+    ? avatarOverride.path
+    : metadata.avatar_path
+  const avatar = <UserAvatar text={username} imagePath={displayedAvatarPath} userId={user.id} />
   const workspaceId = pathname.match(/^\/workspaces\/([^/]+)/)?.[1]
   const profilePath = workspaceId ? `/workspaces/${workspaceId}/profile` : '/profile'
   const itemClass = 'flex min-h-11 items-center gap-2 rounded-md px-3 text-sm outline-none data-highlighted:bg-accent data-disabled:opacity-50'

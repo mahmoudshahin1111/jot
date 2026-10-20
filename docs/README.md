@@ -65,6 +65,17 @@ npm run dev
 Open the URL printed by Vite, normally `http://localhost:5173`.
 Restart Vite after changing environment variables.
 
+To run profile photo uploads locally, start the authenticated Edge Function in
+a second terminal:
+
+```powershell
+npx supabase functions serve profile-avatar
+```
+
+The profile image bucket and its 2 MB/type limits are created by the
+`profile_avatars` migration. The function validates image dimensions before
+updating the user's profile; it does not expose the service-role key to the app.
+
 The frontend shows an email/password signup page using shadcn components,
 React Hook Form, and Zod. Password confirmation must match; the minimum password
 length is six characters, matching the current local Supabase configuration.

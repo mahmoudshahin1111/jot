@@ -29,6 +29,7 @@ const memberSchema = z.object({
   user_id: z.string().uuid(),
   name: z.string(),
   email: z.string(),
+  avatar_path: z.string().nullable().optional(),
 })
 
 const rolesPageSchema = z.object({

@@ -60,6 +60,17 @@ async function signIn(context, account = user) {
   }))
   await context.route(`${authURL}/auth/v1/token*`, async route => {
     const credentials = route.request().postDataJSON()
+    if (credentials.grant_type === 'refresh_token') {
+      return route.fulfill({
+        json: {
+          access_token: 'refreshed-browser-test-session',
+          refresh_token: 'refreshed-browser-test-refresh',
+          token_type: 'bearer',
+          expires_in: 3600,
+          user: account,
+        },
+      })
+    }
     if (credentials.password !== 'current-password') {
       return route.fulfill({ status: 400, json: { msg: 'Invalid login credentials.', error: 'invalid_grant' } })
     }
@@ -104,6 +115,125 @@ for (const width of [1280, 375, 320]) {
       await page.getByRole('menuitem', { name: 'Profile', exact: true }).click()
       await page.waitForURL('**/profile')
       await page.getByRole('heading', { name: 'Change password' }).waitFor()
+      let avatarCreates = 0
+      let avatarCompletions = 0
+      let avatarTransfers = 0
+      let holdNextTransfer = false
+      let transferStarted
+      let markTransferStarted
+      let releaseTransfer
+      await page.route(`${authURL}/functions/v1/profile-avatar`, async route => {
+        if (route.request().method() === 'OPTIONS') {
+          return route.fulfill({
+            headers: {
+              'access-control-allow-origin': new URL(baseURL).origin,
+              'access-control-allow-methods': 'POST, OPTIONS',
+              'access-control-allow-headers': 'apikey, authorization, content-type, x-client-info',
+            },
+          })
+        }
+        const body = route.request().postDataJSON()
+        if (body.action === 'create') {
+          avatarCreates++
+          const path = `avatars/${user.id}/00000000-0000-4000-8000-${String(avatarCreates).padStart(12, '0')}.png`
+          return route.fulfill({
+            json: {
+              path,
+              signedUrl: `${authURL}/storage/v1/object/upload/sign/${path}?token=profile-test`,
+            },
+            headers: { 'access-control-allow-origin': new URL(baseURL).origin },
+          })
+        }
+        avatarCompletions++
+        return route.fulfill({
+          json: { path: body.path },
+          headers: { 'access-control-allow-origin': new URL(baseURL).origin },
+        })
+      })
+      await page.route(`${authURL}/storage/v1/object/upload/sign/**`, async route => {
+        if (route.request().method() === 'OPTIONS') {
+          return route.fulfill({
+            headers: {
+              'access-control-allow-origin': new URL(baseURL).origin,
+              'access-control-allow-methods': 'PUT, OPTIONS',
+              'access-control-allow-headers': 'content-type',
+            },
+          })
+        }
+        avatarTransfers++
+        if (holdNextTransfer) {
+          holdNextTransfer = false
+          markTransferStarted()
+          await new Promise(resolve => { releaseTransfer = resolve })
+          try {
+            await route.fulfill({
+              status: 200,
+              headers: { 'access-control-allow-origin': new URL(baseURL).origin },
+            })
+          } catch {}
+          return
+        }
+        await route.fulfill({
+          status: avatarTransfers === 1 ? 503 : 200,
+          headers: { 'access-control-allow-origin': new URL(baseURL).origin },
+        })
+      })
+      const avatarInput = page.getByLabel('Choose a profile image')
+      await avatarInput.setInputFiles({ name: 'avatar.gif', mimeType: 'image/gif', buffer: Buffer.from('invalid') })
+      await page.getByRole('alert').filter({ hasText: 'Choose a JPEG, PNG, or WebP image.' }).waitFor()
+      assert.equal(avatarCreates, 0)
+      await avatarInput.setInputFiles({
+        name: 'large.png',
+        mimeType: 'image/png',
+        buffer: Buffer.alloc(2 * 1024 * 1024 + 1),
+      })
+      await page.getByRole('alert').filter({ hasText: 'no larger than 2 MB' }).waitFor()
+      assert.equal(avatarCreates, 0)
+      const largeDimensionPng = await page.evaluate(async () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = 1025
+        canvas.height = 1
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+        return Array.from(new Uint8Array(await blob.arrayBuffer()))
+      })
+      await avatarInput.setInputFiles({
+        name: 'wide.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(largeDimensionPng),
+      })
+      await page.getByRole('alert').filter({ hasText: 'no larger than 1024' }).waitFor()
+      assert.equal(avatarCreates, 0)
+      const validPng = await page.evaluate(async () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = 1
+        canvas.height = 1
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+        return Array.from(new Uint8Array(await blob.arrayBuffer()))
+      })
+      const uploadFile = { name: 'avatar.png', mimeType: 'image/png', buffer: Buffer.from(validPng) }
+      await avatarInput.setInputFiles(uploadFile)
+      await page.getByRole('alert').filter({ hasText: 'Image upload failed (503).' }).waitFor()
+      await page.getByRole('button', { name: 'Retry', exact: true }).click()
+      await page.getByRole('status').filter({ hasText: 'Profile photo saved successfully.' }).waitFor()
+      assert.equal(avatarCreates, 2)
+      assert.equal(avatarTransfers, 2)
+      assert.equal(avatarCompletions, 1)
+      const savedAvatar = page.locator('main img')
+      const savedAvatarUrl = await savedAvatar.getAttribute('src')
+      assert.match(savedAvatarUrl, /00000000-0000-4000-8000-000000000002\.png/)
+      await page.getByRole('button', { name: 'Close', exact: true }).click()
+      await page.getByRole('button', { name: 'User menu' }).click()
+      assert.equal(await page.getByRole('menu').locator('img').count(), 1)
+      await page.keyboard.press('Escape')
+      holdNextTransfer = true
+      transferStarted = new Promise(resolve => { markTransferStarted = resolve })
+      await avatarInput.setInputFiles(uploadFile)
+      await transferStarted
+      await page.keyboard.press('Escape')
+      await page.getByRole('dialog').waitFor({ state: 'hidden' })
+      releaseTransfer()
+      assert.equal(avatarCompletions, 1)
+      assert.equal(await savedAvatar.getAttribute('src'), savedAvatarUrl)
       let updates = 0
       const updateBodies = []
       let updateError = false
