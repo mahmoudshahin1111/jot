@@ -304,6 +304,13 @@ record successful delivery. On email failure it cancels the reservation and
 reports the failure; canceled links cannot grant access. The frontend never
 receives service-role credentials.
 
+The `profile-avatar` Edge Function issues signed upload URLs only beneath the
+authenticated user's avatar folder. Supabase Storage limits the public `avatars`
+bucket to JPEG, PNG, and WebP files of at most 2 MB; the function also inspects
+the uploaded image bytes and enforces the 1024 × 1024 pixel limit before saving
+the avatar path in that user's Auth metadata. Invalid uploads are removed and
+cannot replace the currently saved profile image.
+
 Accepting does not require an existing workspace membership. A confirmed email
 must match the invitation; no email or user ID supplied by the accepting client
 is trusted. Other memberships remain unchanged, existing target-workspace roles

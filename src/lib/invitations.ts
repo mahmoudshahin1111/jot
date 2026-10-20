@@ -12,6 +12,7 @@ const invitationSchema = z.object({
 const workspaceUserSchema = z.object({
   user_id: z.string().uuid(), role_id: z.string().uuid(), role_name: z.string(),
   name: z.string(), email: z.string(),
+  avatar_path: z.string().nullable().optional(),
 })
 export type WorkspaceInvitation = z.infer<typeof invitationSchema>
 export type WorkspaceUser = z.infer<typeof workspaceUserSchema>

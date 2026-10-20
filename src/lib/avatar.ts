@@ -8,3 +8,10 @@ export function getAvatarColor(username: string) {
 export function getAvatarInitials(username: string) {
   return Array.from(username.trim()).slice(0, 2).join('').toUpperCase() || '?'
 }
+
+export function getUserAvatarPath(value: unknown, userId: string) {
+  if (typeof value !== 'string') return null
+  const prefix = `avatars/${userId}/`
+  if (!value.startsWith(prefix)) return null
+  return /^[0-9a-f-]{36}\.(?:jpg|png|webp)$/i.test(value.slice(prefix.length)) ? value : null
+}

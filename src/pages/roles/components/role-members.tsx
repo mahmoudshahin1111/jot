@@ -64,7 +64,7 @@ export function RoleMembers({
         <ul className="divide-y border-y">
           {members.members.map(member => (
             <li key={member.user_id} className="flex items-center gap-3 py-4">
-              <UserAvatar text={member.name} decorative />
+              <UserAvatar text={member.name} imagePath={member.avatar_path} userId={member.user_id} decorative />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium" title={member.name}>{member.name}</p>
                 <p className="truncate font-mono text-xs text-muted-foreground" title={member.email}>{member.email}</p>

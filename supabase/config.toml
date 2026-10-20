@@ -260,6 +260,9 @@ content_path = "./supabase/templates/confirmation.html"
 [functions.invite-workspace-user]
 verify_jwt = false
 
+[functions.profile-avatar]
+verify_jwt = false
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true
