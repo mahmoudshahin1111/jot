@@ -19,5 +19,5 @@ Jot is a task manager built around **workspaces**. Each workspace has its own ta
 - **Workspace:** a separate space for one team or project. The person who creates it becomes its **Owner**.
 - **Task:** one piece of work, with a title, a status (To do, In progress, Done) and a description.
 - **Role:** a named set of permissions, such as Admin or Editor. Every member has one role.
-- **Permission:** one thing a role can do, such as `projects:write`. You turn each one on or off with a checkbox.
+- **Permission:** one thing a role can do, such as `tasks.read`. You turn each one on or off with a checkbox.
 - **Activity:** the workspace history. Important actions are logged with who did them and when.
