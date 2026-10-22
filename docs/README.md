@@ -51,6 +51,12 @@ npm run dev
 Open the URL printed by Vite, usually `http://localhost:5173`. Restart Vite
 after changing environment variables.
 
+To use profile photo uploads, run the Edge Function in a second terminal:
+
+```powershell
+npx supabase functions serve profile-avatar
+```
+
 ## Validate changes
 
 ```powershell
